@@ -1,0 +1,44 @@
+{
+  "name": "ai-aggregator-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@heroicons/vue": "^2.2.0",
+    "@types/markdown-it": "^14.1.2",
+    "axios": "^1.13.4",
+    "chart.js": "^4.5.1",
+    "echarts": "^6.0.0",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "pinia": "^2.1.7",
+    "pinia-plugin-persistedstate": "^3.2.3",
+    "qrcode": "^1.5.4",
+    "vue": "^3.4.0",
+    "vue-chartjs": "^5.3.3",
+    "vue-router": "^4.5.0",
+    "weixin-js-sdk": "^1.6.5"
+  },
+  "devDependencies": {
+    "@pinia/testing": "^0.1.3",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^25.0.10",
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.16",
+    "jsdom": "^28.0.0",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "vitest": "^4.0.18"
+  }
+}

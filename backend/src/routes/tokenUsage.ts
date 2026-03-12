@@ -1,0 +1,81 @@
+import express, {Request, Response} from 'express'
+import {getTokenStats, getTokenHistory, getTokenTrend} from '../services/tokenService.ts'
+import {authenticateToken} from '../middleware/auth.ts'
+
+const router = express.Router()
+
+router.get('/stats', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id
+    const stats = await getTokenStats(userId)
+    res.json(stats)
+  } catch (error) {
+    console.error('Get token stats error:', error)
+    res.status(500).json({error: 'Failed to fetch token stats'})
+  }
+})
+
+router.get('/history', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 10
+    const type = req.query.type as string
+    const model = req.query.model as string
+    const start = req.query.start as string
+    const end = req.query.end as string
+    const startDate = start ? new Date(`${start}T00:00:00`) : undefined
+    const endDate = end ? new Date(`${end}T23:59:59`) : undefined
+
+    const history = await getTokenHistory(userId, page, limit, type, model, startDate, endDate)
+    res.json(history)
+  } catch (error) {
+    console.error('Get token history error:', error)
+    res.status(500).json({error: 'Failed to fetch token history'})
+  }
+})
+
+router.get('/trend', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id
+    const days = parseInt(req.query.days as string) || 30
+    const trend = await getTokenTrend(userId, days)
+    res.json(trend)
+  } catch (error) {
+    console.error('Get token trend error:', error)
+    res.status(500).json({error: 'Failed to fetch token trend'})
+  }
+})
+
+// Export CSV/Excel (Simplified as CSV for now)
+router.get('/export', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id
+    // Fetch all history for export (limit to last 1000 for safety)
+    const {records} = await getTokenHistory(userId, 1, 1000)
+    
+    // Convert to CSV
+    const fields = ['Time', 'Type', 'Amount', 'Model', 'Balance After']
+    const csv = [
+      fields.join(','),
+      ...records.map(r => {
+        return [
+          new Date(r.createdAt).toISOString(),
+          r.type,
+          r.amount,
+          r.model || '',
+          r.balanceAfter
+        ].join(',')
+      })
+    ].join('\n')
+    
+    res.header('Content-Type', 'text/csv')
+    res.attachment('token_usage.csv')
+    res.send(csv)
+  } catch (error) {
+    console.error('Export token usage error:', error)
+    res.status(500).json({error: 'Failed to export token usage'})
+  }
+})
+
+export const tokenUsageRouter = router
