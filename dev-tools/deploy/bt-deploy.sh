@@ -11,6 +11,7 @@ PROJECT_NAME="ai_app"
 WITH_BUILD="0"
 DRY_RUN="0"
 ALLOW_DIRTY="0"
+SYNC_SCOPE="minimal"
 
 usage() {
   cat <<USAGE
@@ -30,6 +31,7 @@ Options:
   --with-build                  run backend/frontend/admin build precheck
   --dry-run                     only precheck + rsync --dry-run
   --allow-dirty                 skip clean working tree check
+  --sync-all                    sync whole repo (default is minimal set)
   -h, --help
 USAGE
 }
@@ -74,6 +76,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-dirty)
       ALLOW_DIRTY="1"
+      shift
+      ;;
+    --sync-all)
+      SYNC_SCOPE="all"
       shift
       ;;
     -h|--help)
@@ -186,8 +192,21 @@ if [[ "$DRY_RUN" == "1" ]]; then
   RSYNC_ARGS+=(--dry-run)
 fi
 
-echo "[deploy] sync repo -> ${USER}@${HOST}:${REMOTE_DIR}"
-run_with_password "$PASSWORD" rsync "${RSYNC_ARGS[@]}" -e "ssh -p ${PORT}" ./ "${USER}@${HOST}:${REMOTE_DIR}/"
+SYNC_SOURCES=()
+if [[ "$SYNC_SCOPE" == "all" ]]; then
+  SYNC_SOURCES=(./)
+else
+  SYNC_SOURCES=(
+    ./backend
+    ./frontend
+    ./admin
+    ./docker-compose.yml
+    ./dev-tools/deploy/remote-deploy.sh
+  )
+fi
+
+echo "[deploy] sync scope=${SYNC_SCOPE} -> ${USER}@${HOST}:${REMOTE_DIR}"
+run_with_password "$PASSWORD" rsync "${RSYNC_ARGS[@]}" -e "ssh -p ${PORT}" "${SYNC_SOURCES[@]}" "${USER}@${HOST}:${REMOTE_DIR}/"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "[deploy] dry-run done"
