@@ -1,6 +1,25 @@
 import {randomUUID} from 'node:crypto'
 import type {Request, Response, NextFunction} from 'express'
 
+interface StandardErrorPayload {
+  code?: string
+  message?: string
+  retryable?: boolean
+  details?: unknown
+  requestId?: string
+}
+
+interface StandardErrorEnvelope {
+  error: StandardErrorPayload
+}
+
+type UnknownRecord = Record<string, unknown>
+
+const asRecord = (value: unknown): UnknownRecord | null => {
+  if (!value || typeof value !== 'object') return null
+  return value as UnknownRecord
+}
+
 export class ApiError extends Error {
   status: number
   code: string
@@ -16,27 +35,29 @@ export class ApiError extends Error {
   }
 }
 
-const toStandardErrorPayload = (status: number, payload: any) => {
-  const raw = payload?.error
-  if (raw && typeof raw === 'object') {
+const toStandardErrorPayload = (status: number, payload: unknown): unknown => {
+  const normalized = asRecord(payload)
+  const raw = asRecord(normalized?.error)
+
+  if (raw) {
     return {
       error: {
-        code: raw.code || payload?.code || `HTTP_${status}`,
-        message: raw.message || 'Request failed',
+        code: typeof raw.code === 'string' && raw.code ? raw.code : typeof normalized?.code === 'string' ? normalized.code : `HTTP_${status}`,
+        message: typeof raw.message === 'string' && raw.message ? raw.message : 'Request failed',
         retryable: typeof raw.retryable === 'boolean' ? raw.retryable : status >= 500,
         details: raw.details,
       },
-    }
+    } satisfies StandardErrorEnvelope
   }
 
-  if (typeof raw === 'string') {
+  if (typeof normalized?.error === 'string') {
     return {
       error: {
-        code: payload?.code || `HTTP_${status}`,
-        message: raw,
-        retryable: typeof payload?.retryable === 'boolean' ? payload.retryable : status >= 500,
+        code: typeof normalized?.code === 'string' && normalized.code ? normalized.code : `HTTP_${status}`,
+        message: normalized.error,
+        retryable: typeof normalized?.retryable === 'boolean' ? normalized.retryable : status >= 500,
       },
-    }
+    } satisfies StandardErrorEnvelope
   }
 
   return payload
@@ -45,18 +66,19 @@ const toStandardErrorPayload = (status: number, payload: any) => {
 export const attachRequestId = (req: Request, res: Response, next: NextFunction) => {
   const headerRequestId = String(req.headers['x-request-id'] || '').trim()
   const requestId = headerRequestId || randomUUID()
-  ;(req as any).requestId = requestId
+  req.requestId = requestId
   res.setHeader('X-Request-Id', requestId)
   next()
 }
 
 export const wrapLegacyErrorEnvelope = (req: Request, res: Response, next: NextFunction) => {
   const originalJson = res.json.bind(res)
-  res.json = ((payload: any) => {
+  res.json = ((payload: unknown) => {
     if (res.statusCode >= 400) {
       const normalized = toStandardErrorPayload(res.statusCode, payload)
-      if (normalized?.error && typeof normalized.error === 'object' && !normalized.error.requestId) {
-        normalized.error.requestId = (req as any).requestId
+      const errorEnvelope = asRecord(normalized) as StandardErrorEnvelope | null
+      if (errorEnvelope?.error && !errorEnvelope.error.requestId) {
+        errorEnvelope.error.requestId = req.requestId
       }
       return originalJson(normalized)
     }
@@ -78,4 +100,3 @@ export const sendError = (
     },
   })
 }
-

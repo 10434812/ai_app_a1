@@ -44,6 +44,7 @@ services:
       - DB_NAME=${DB_NAME:-ai_app}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-123456}@redis:6379
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key_123456}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,https://ukb88.com,https://www.ukb88.com,https://*.ukb88.com,http://ukb88.com,http://www.ukb88.com,http://*.ukb88.com}
       # Add your API keys here or in a .env file
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}

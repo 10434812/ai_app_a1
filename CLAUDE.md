@@ -1,161 +1,87 @@
 # CLAUDE.md
 
-你是项目总控，只负责：
-
-1. 阅读需求并提出澄清问题
-2. 制定实施计划
-3. 把任务拆成最小可执行子任务
-4. 为每个子任务写清楚验收标准
-5. 审核执行结果并决定下一步
-
-硬规则：
-
-- 默认不直接写实现代码
-- 默认把“编码、改文件、跑验证”交给 Codex
-- 每次只产出一个最小子任务
-- 子任务必须包含：
-  - 目标
-  - 范围
-  - 限制条件
-  - 需要修改的文件/模块
-  - 验收标准
-  - 失败时回滚点
-- 涉及数据库迁移、鉴权、支付、权限模型，必须单独列风险
-- 优先保持现有接口兼容
-
-输出格式必须严格如下：
-
-## PLAN
-
-<这里写计划>
-
-## CODEX_TASK
-
-<这里写唯一一个交给 Codex 的子任务>
-
-## ACCEPTANCE
-
-<这里写验收标准>
-
-## RISKS
-
-<这里写风险>
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-这是一个 AI 聚合服务平台 (AI Aggregator)，聚合多种大语言模型 (LLM) 提供聊天服务。项目采用前后端分离架构，包含用户端前端和管理后台。
+AI 聚合问答平台（ai-app），三端架构：
+- `frontend/` — 用户前台（Vue 3 + TypeScript + Vite + Pinia + Tailwind）
+- `admin/` — 管理后台（Vue 3 + TypeScript + Vite + Pinia + Tailwind）
+- `backend/` — 后端 API（Express + TypeScript + Sequelize + MySQL 8 + Redis）
+
+## Quick Start
+
+```bash
+# Docker 一键启动（推荐）
+docker compose up -d --build
+
+# 本地开发（先起基础设施，再起各服务）
+docker compose up -d mysql redis
+cd backend && npm ci && npm run dev    # :4000
+cd frontend && npm ci && npm run dev   # :5173
+cd admin && npm ci && npm run dev      # :5174
+```
 
 ## Common Commands
 
-### Backend
+所有子项目都有相同的脚本约定：
 
+```bash
+cd backend|frontend|admin
+npm run typecheck   # TypeScript 类型检查
+npm run build       # 构建
+npm test            # 运行测试
+```
+
+后端特有命令：
 ```bash
 cd backend
-pnpm install          # 安装依赖 (项目使用 pnpm)
-pnpm dev              # 启动开发服务器 (端口 4000)
-pnpm build            # 构建生产版本
-pnpm migrate          # 运行数据库迁移
-pnpm migrate:rollback # 回滚迁移
+npm run dev              # 热重载开发
+npm run migrate          # 执行迁移
+npm run migrate:rollback # 回滚迁移
+npm run config:export    # 导出 system_configs 配置
+npm run config:import    # 导入 system_configs 配置
+npm run test:e2e         # E2E 测试
 ```
 
-迁移脚本位于 `backend/src/scripts/` 目录。
-
-### Frontend
-
-```bash
-cd frontend
-pnpm install
-pnpm dev              # 启动开发服务器
-pnpm build            # 构建生产版本
-pnpm typecheck        # TypeScript 类型检查
-pnpm test             # 运行单元测试 (vitest)
-```
-
-### Docker
-
-```bash
-docker-compose up -d  # 启动所有服务 (PostgreSQL, Redis, etc.)
-```
-
-## Architecture
+## Architecture Notes
 
 ### Backend (`backend/src/`)
-
-```
-你是项目总控，只负责：
-1. 读取需求并提出澄清问题
-2. 制定实施计划
-3. 把任务拆成最小可执行子任务
-4. 明确每个子任务的验收标准
-5. 审核执行结果并决定下一步
-
-规则：
-- 先计划，后执行
-- 除非我明确要求，否则你不直接写代码
-- 每次只下发一个清晰子任务给执行代理
-- 任务必须包含：目标、范围、限制、验证方式、回滚点
-- 涉及数据库、鉴权、迁移、支付时，必须额外列风险
-- 优先保持现有接口兼容
-
-以下是项目详细介绍
-src/
-├── config/           # 配置模块 (数据库、Redis、支付计划等)
-├── errors/           # 自定义错误类
-├── middleware/       # Express 中间件 (auth, rbac, rateLimit, entitlement)
-├── migrations/       # 数据库迁移
-├── models/           # TypeORM 实体 (User, Conversation, Message, Order, etc.)
-├── routes/           # API 路由 (auth, chat, payment, admin, wechat, media 等)
-├── services/         # 业务逻辑服务
-│   ├── llm/          # LLM 提供商抽象 (OpenAI, Mock)
-│   ├── media/        # 媒体处理 (图片生成任务)
-│   ├── payment/      # 支付服务 (微信支付)
-│   └── wechat/       # 微信 OAuth 和 JSSDK
-└── scripts/          # 迁移脚本
-```
-
-- 入口: `src/index.ts` - 启动服务器、连接数据库/Redis、启动定时任务
-- Express app: `src/app.ts` - 路由注册和中间件配置
-- 数据库: PostgreSQL + TypeORM
-- 缓存: Redis
-- 认证: JWT + 微信 OAuth
+- `app.ts` — Express 路由挂载，API 前缀：`/api/auth`, `/api/chat`, `/api/media`, `/api/payment`, `/api/token`, `/api/admin`, `/api/config`, `/api/visit`, `/api/wechat`
+- `index.ts` — 应用入口，启动时自动建库、sync、执行迁移
+- `routes/` — 路由定义
+- `services/` — 业务逻辑层
+- `models/` — Sequelize 模型
+- `middleware/` — JWT 鉴权、RBAC 权限（`rbac.ts`）、限流
+- `migrations/` — 数据库迁移，注册表在 `registry.ts`
+- `config/` — 数据库/Redis 连接配置
+- `errors/` — 统一错误格式（code/message/retryable/requestId）
 
 ### Frontend (`frontend/src/`)
+- `router/index.ts` — 前台路由
+- `views/ChatView.vue` — 聊天主页面（多模型并发、图片生成、骨架态）
+- `views/MembershipView.vue` — 会员与充值
+- `views/TokenUsageView.vue` — Token 账单
+- `stores/` — Pinia 状态管理
+- `components/` — 可复用组件
 
-```
-src/
-├── api/              # API 请求封装 (axios)
-├── components/       # Vue 组件
-├── composables/      # Vue Composition API 组合式函数
-├── constants/        # 常量定义
-├── router/           # Vue Router 配置
-├── stores/           # Pinia 状态管理 (持久化)
-├── types/            # TypeScript 类型定义
-├── utils/            # 工具函数
-└── views/            # 页面组件
-```
+### Admin (`admin/src/`)
+- `router/index.ts` — 后台路由
+- `views/` — 仪表盘、用户管理、模型管理、订单管理、对话日志、系统设置、计费配置、数据分析
 
-- 技术栈: Vue 3, Vite, Pinia, Vue Router, TailwindCSS, ECharts/Chart.js
-- 状态管理: Pinia + pinia-plugin-persistedstate (localStorage 持久化)
-- Markdown 渲染: markdown-it + highlight.js
+### Database
+核心表：`users`, `conversations`, `messages`, `orders`, `order_audit_logs`, `token_usage_records`, `system_configs`, `visit_logs`, `media_tasks`
 
-### Admin (`admin/`)
+### RBAC Roles
+`super_admin` > `admin` > `ops` / `finance` / `support` > `user`
 
-管理后台，使用与 frontend 相同的技术栈。
+权限点定义在 `backend/src/middleware/rbac.ts`。
 
-## Key Design Patterns
+### CI
+GitHub Actions (`.github/workflows/ci.yml`) 在 PR/主分支执行 typecheck + build + test 全量门禁。
 
-- **TypeORM Entities**: 使用装饰器定义数据模型 (`@Entity`, `@Column`, `@ManyToOne` 等)
-- **Service Layer**: 业务逻辑封装在 services 目录，路由层仅做参数验证和调用
-- **RBAC**: 基于角色的访问控制，中间件 `src/middleware/rbac.ts`
-- **LLM Provider 抽象**: `src/services/llm/` 目录，通过工厂模式创建不同提供商的客户端
+## Development Conventions
 
-## Database
-
-项目使用 PostgreSQL，连接配置在 `backend/.env`。主要数据模型:
-
-- User: 用户账户
-- Conversation: 对话
-- Message: 消息
-- Order: 订单 (含支付和退款)
-- MediaTask: 媒体生成任务
+- 新增接口必须遵循统一错误结构（包含可读 `message`）
+- 后台危险操作需要"二次确认 + 审计记录"
+- 提交前至少跑对应子项目的 `typecheck + build`

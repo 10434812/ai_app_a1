@@ -1,5 +1,6 @@
 import {Table, Column, Model, DataType, PrimaryKey, Default, IsUUID, ForeignKey, BelongsTo} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {User} from './User.ts'
 
 @Table({
@@ -21,13 +22,13 @@ export class Order extends Model {
   declare userId: string
 
   @BelongsTo(() => User)
-  declare user: User
+  declare user: NonAttribute<User>
 
   @Column({
     type: DataType.DECIMAL(10, 2),
     allowNull: false,
   })
-  declare amount: number
+  declare amount: string
 
   @Column({
     type: DataType.ENUM('monthly', 'quarterly', 'yearly', 'token_pack'),
@@ -58,7 +59,7 @@ export class Order extends Model {
     type: DataType.DECIMAL(10, 2),
     allowNull: true,
   })
-  declare refundedAmount: number | null
+  declare refundedAmount: string | null
 
   @Column({
     type: DataType.DATE,

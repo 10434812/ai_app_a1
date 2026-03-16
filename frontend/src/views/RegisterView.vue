@@ -3,6 +3,7 @@ import {ref} from 'vue'
 import {useRouter} from 'vue-router'
 import {useAuthStore} from '../stores/auth'
 import {API_BASE_URL} from '../constants/config'
+import {extractApiErrorMessage, extractThrownErrorMessage} from '../utils/apiError'
 
 const name = ref('')
 const email = ref('')
@@ -11,39 +12,23 @@ const error = ref('')
 const router = useRouter()
 const authStore = useAuthStore()
 
-const extractApiErrorMessage = (payload: any, fallback: string) => {
-  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) {
-    return payload.error.message.trim()
-  }
-  if (typeof payload?.error === 'string' && payload.error.trim()) {
-    return payload.error.trim()
-  }
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message.trim()
-  }
-  return fallback
-}
-
 async function handleRegister() {
   error.value = ''
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
       body: JSON.stringify({name: name.value, email: email.value, password: password.value}),
     })
 
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(extractApiErrorMessage(data, '注册失败，请稍后重试'))
 
-    authStore.setAuth(data.token, data.user)
+    authStore.setAuth('cookie', data.user)
     router.push('/')
-  } catch (e: any) {
-    if (typeof e?.message === 'string' && e.message.trim()) {
-      error.value = e.message.trim()
-      return
-    }
-    error.value = '注册失败，请稍后重试'
+  } catch (e: unknown) {
+    error.value = extractThrownErrorMessage(e, '注册失败，请稍后重试')
   }
 }
 </script>

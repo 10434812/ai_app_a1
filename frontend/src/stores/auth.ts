@@ -1,8 +1,9 @@
 import {defineStore} from 'pinia'
 import {ref, computed} from 'vue'
 import {API_BASE_URL} from '../constants/config'
+import {extractApiErrorMessage} from '../utils/apiError'
 
-interface User {
+export interface User {
   id: string
   email: string
   name: string
@@ -22,10 +23,10 @@ export const useAuthStore = defineStore(
     const user = ref<User | null>(null)
     const token = ref<string | null>(null)
 
-    const isAuthenticated = computed(() => !!token.value)
+    const isAuthenticated = computed(() => !!user.value)
 
     function setAuth(newToken: string, newUser: User) {
-      token.value = newToken
+      token.value = newToken || 'cookie'
       user.value = newUser
     }
 
@@ -34,29 +35,17 @@ export const useAuthStore = defineStore(
       user.value = null
     }
 
-    const extractApiErrorMessage = (payload: any, fallback: string) => {
-      if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) {
-        return payload.error.message.trim()
-      }
-      if (typeof payload?.error === 'string' && payload.error.trim()) {
-        return payload.error.trim()
-      }
-      if (typeof payload?.message === 'string' && payload.message.trim()) {
-        return payload.message.trim()
-      }
-      return fallback
-    }
-
     async function loginWithWeChat(code: string) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/wechat/login`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
           body: JSON.stringify({code}),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(extractApiErrorMessage(data, '微信登录失败'))
-        setAuth(data.token, data.user)
+        setAuth('cookie', data.user)
         return true
       } catch (e) {
         console.error('WeChat login failed:', e)
@@ -65,13 +54,13 @@ export const useAuthStore = defineStore(
     }
 
     async function fetchUser() {
-      if (!token.value) return
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-          headers: {Authorization: `Bearer ${token.value}`},
+          credentials: 'include',
         })
         if (res.ok) {
           const data = await res.json()
+          token.value = 'cookie'
           user.value = data.user
         } else {
           if (res.status === 401 || res.status === 403) {
@@ -86,15 +75,11 @@ export const useAuthStore = defineStore(
 
     async function logout() {
       try {
-        if (token.value) {
-          await fetch(`${API_BASE_URL}/api/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token.value}`,
-              'Content-Type': 'application/json'
-            }
-          })
-        }
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+        })
       } catch (e) {
         console.error('Logout API error:', e)
       } finally {
@@ -103,10 +88,5 @@ export const useAuthStore = defineStore(
     }
 
     return {user, token, isAuthenticated, setAuth, clearAuth, fetchUser, loginWithWeChat, logout}
-  },
-  {
-    persist: {
-      paths: ['user', 'token'],
-    },
   },
 )

@@ -8,6 +8,7 @@ import {getVisitMetrics} from './visitService.ts'
 
 const CACHE_TTL = 3600 // 1 hour
 const DEFAULT_REGISTER_TOKENS = 5000
+const normalizeEmail = (email: string) => String(email || '').trim().toLowerCase()
 
 export const getAllUsers = async (): Promise<User[]> => {
   return User.findAll()
@@ -25,7 +26,7 @@ export const updateUserStatus = async (id: string, isActive: boolean): Promise<U
 }
 
 export const findUserByEmail = async (email: string): Promise<User | null> => {
-  return User.findOne({where: {email}})
+  return User.findOne({where: {email: normalizeEmail(email)}})
 }
 
 export const findUserById = async (id: string): Promise<User | null> => {
@@ -70,7 +71,7 @@ export const createUser = async (email: string, password: string, name: string):
   const passwordHash = await bcrypt.hash(password, 10)
   const tokensBalance = await getRegisterQuota()
   const user = await User.create({
-    email,
+    email: normalizeEmail(email),
     passwordHash,
     name,
     role: 'user',

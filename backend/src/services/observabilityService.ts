@@ -13,6 +13,11 @@ type CounterKey =
 
 const metricKey = (key: CounterKey) => `obs:counter:${key}`
 
+interface SentryLike {
+  captureException(error: unknown, context?: unknown): unknown
+  captureMessage(name: string, context?: unknown): unknown
+}
+
 const incrementCounter = async (key: CounterKey, by = 1) => {
   try {
     await redisClient.incrBy(metricKey(key), Math.max(1, Math.floor(by)))
@@ -21,7 +26,7 @@ const incrementCounter = async (key: CounterKey, by = 1) => {
   }
 }
 
-let sentryClient: any = null
+let sentryClient: SentryLike | null = null
 let sentryReady = false
 
 export const initObservability = async () => {

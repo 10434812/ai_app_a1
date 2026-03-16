@@ -3,7 +3,25 @@ import {ref, watch, onUnmounted} from 'vue'
 import * as QRCode from 'qrcode'
 import {createCheckout, getOrderStatus} from '../../api/payment'
 
-interface PaymentPlan {
+interface WeChatPayInvokeResponse {
+  err_msg?: string
+}
+
+interface WeChatBridge {
+  invoke(
+    method: 'getBrandWCPayRequest',
+    params: Record<string, string>,
+    callback: (result: WeChatPayInvokeResponse) => void,
+  ): void
+}
+
+declare global {
+  interface Window {
+    WeixinJSBridge?: WeChatBridge
+  }
+}
+
+export interface PaymentPlan {
   name?: string
   price?: string | number
   paymentPlanKey?: string
@@ -79,7 +97,7 @@ const checkOrderStatus = async () => {
       step.value = 'error'
       errorText.value = '订单支付失败，请重试。'
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Check order status failed:', error)
   } finally {
     checkingStatus = false
@@ -108,7 +126,7 @@ const startPolling = () => {
 const invokeWeChatPay = (params: NonNullable<Awaited<ReturnType<typeof createCheckout>>['jsapiParams']>) =>
   new Promise<void>((resolve, reject) => {
     const invoke = () => {
-      const bridge = (window as any).WeixinJSBridge
+      const bridge = window.WeixinJSBridge
       if (!bridge) {
         reject(new Error('未检测到微信支付环境'))
         return
@@ -124,7 +142,7 @@ const invokeWeChatPay = (params: NonNullable<Awaited<ReturnType<typeof createChe
           signType: params.signType,
           paySign: params.paySign,
         },
-        (res: any) => {
+        (res: WeChatPayInvokeResponse) => {
           const msg = String(res?.err_msg || '').toLowerCase()
           if (msg.includes('ok')) {
             resolve()
@@ -139,7 +157,7 @@ const invokeWeChatPay = (params: NonNullable<Awaited<ReturnType<typeof createChe
       )
     }
 
-    if ((window as any).WeixinJSBridge) {
+    if (window.WeixinJSBridge) {
       invoke()
       return
     }
@@ -190,10 +208,10 @@ const startPayment = async () => {
     startCountdown()
     startPolling()
     checkOrderStatus()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Create checkout failed:', error)
     step.value = 'error'
-    errorText.value = error?.message || '创建订单失败，请稍后重试'
+    errorText.value = error instanceof Error ? error.message : '创建订单失败，请稍后重试'
   }
 }
 

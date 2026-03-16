@@ -1,13 +1,7 @@
 import {Router, Request, Response} from 'express'
 import {authenticateToken} from '../middleware/auth.ts'
 import {getImageGenerationPublicOptions} from '../services/media/imageService.ts'
-import {
-  createImageTask,
-  createVideoTask,
-  getTaskByIdForUser,
-  runMediaTaskWorkerTick,
-  startMediaTaskWorker,
-} from '../services/media/mediaTaskService.ts'
+import {createImageTask, getTaskByIdForUser, runMediaTaskWorkerTick, startMediaTaskWorker} from '../services/media/mediaTaskService.ts'
 import {withConcurrencyGuard, withEntitlement, enforceImageRequestLimit} from '../middleware/entitlement.ts'
 import {captureError} from '../services/observabilityService.ts'
 import {withRateLimit} from '../middleware/rateLimit.ts'
@@ -71,8 +65,8 @@ router.post(
         success: true,
         task,
       })
-    } catch (error: any) {
-      const message = String(error?.message || '')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error || '')
       if (message.includes('Token余额不足')) {
         return sendError(res, {
           status: 402,
@@ -146,55 +140,13 @@ router.get('/tasks/:taskId', authenticateToken, async (req: Request, res: Respon
   }
 })
 
-router.post('/video/generate', authenticateToken, withRateLimit('image'), withEntitlement, async (req: Request, res: Response) => {
-  try {
-    const {prompt, provider, model, size, n, modelId} = req.body || {}
-    if (modelId && !(await isModelActive(String(modelId)))) {
-      return sendError(res, {
-        status: 403,
-        code: 'MODEL_DISABLED',
-        message: '该模型已被管理员禁用',
-        retryable: false,
-      })
-    }
-
-    const task = await createVideoTask({
-      userId: req.user!.id,
-      prompt,
-      provider,
-      model,
-      size,
-      n,
-      modelId,
-    })
-
-    runMediaTaskWorkerTick().catch(() => {
-      // no-op
-    })
-
-    res.status(202).json({
-      success: true,
-      task,
-    })
-  } catch (error: any) {
-    const message = String(error?.message || '')
-    if (message.includes('Prompt is required')) {
-      return sendError(res, {
-        status: 400,
-        code: 'INVALID_PROMPT',
-        message: '提示词不能为空',
-        retryable: false,
-      })
-    }
-
-    captureError(error, {scope: 'media.video.create_task'})
-    sendError(res, {
-      status: 500,
-      code: 'VIDEO_TASK_CREATE_FAILED',
-      message: '创建视频任务失败',
-      retryable: true,
-    })
-  }
+router.post('/video/generate', authenticateToken, withRateLimit('image'), withEntitlement, async (_req: Request, res: Response) => {
+  sendError(res, {
+    status: 501,
+    code: 'VIDEO_NOT_IMPLEMENTED',
+    message: '视频生成功能正在接入中，暂未开放',
+    retryable: false,
+  })
 })
 
 export default router

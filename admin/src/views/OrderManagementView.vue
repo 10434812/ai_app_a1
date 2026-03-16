@@ -347,7 +347,9 @@ import {
   repairOrderStatus,
   type Order,
   type OrderAudit,
+  type OrderQuery,
 } from '../api/admin'
+import {extractThrownErrorMessage} from '../utils/apiError'
 
 const orders = ref<Order[]>([])
 const loading = ref(false)
@@ -421,14 +423,6 @@ const saveBlob = (blob: Blob, filename: string) => {
   window.URL.revokeObjectURL(url)
 }
 
-const extractAdminErrorMessage = (error: any, fallback: string) => {
-  const payload = error?.response?.data
-  if (typeof payload?.error?.message === 'string') return payload.error.message
-  if (typeof payload?.error === 'string') return payload.error
-  if (typeof error?.message === 'string') return error.message
-  return fallback
-}
-
 const syncSelectedOrder = () => {
   if (!selectedOrder.value) return
   const latest = orders.value.find((item) => item.id === selectedOrder.value?.id)
@@ -442,7 +436,7 @@ const syncSelectedOrder = () => {
 const fetchOrders = async () => {
   loading.value = true
   try {
-    const params: Record<string, any> = {
+    const params: OrderQuery = {
       page: page.value,
       limit: limit.value,
       q: filters.value.q || undefined,
@@ -458,7 +452,7 @@ const fetchOrders = async () => {
     syncSelectedOrder()
   } catch (error) {
     console.error('Failed to fetch orders:', error)
-    alert('加载订单失败')
+    alert(extractThrownErrorMessage(error, '加载订单失败'))
   } finally {
     loading.value = false
   }
@@ -551,7 +545,7 @@ const submitOperation = async () => {
     }
     closeOperationModal()
   } catch (error) {
-    alert(extractAdminErrorMessage(error, `${modalTitle.value}失败`))
+    alert(extractThrownErrorMessage(error, `${modalTitle.value}失败`))
   } finally {
     submittingOperation.value = false
   }

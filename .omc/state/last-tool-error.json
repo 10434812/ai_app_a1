@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"codex exec \\\"今天天气怎么样？\\\" 2>&1\",\"timeout\":120000,\"description\":\"Run codex in non-interactive mode\"}",
-  "error": "Exit code 1\nNot inside a trusted directory and --skip-git-repo-check was not specified.",
-  "timestamp": "2026-03-11T08:09:16.970Z",
-  "retry_count": 3
-}

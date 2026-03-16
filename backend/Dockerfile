@@ -1,14 +1,18 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
-
 COPY package*.json ./
-# Install all dependencies (including devDependencies for tsx)
 RUN npm install
-
 COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm install --omit=dev
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 4000
-
-# Use tsx to run the application directly
-CMD ["npx", "tsx", "src/index.ts"]
+CMD ["node", "dist/index.js"]

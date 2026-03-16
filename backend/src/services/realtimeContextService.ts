@@ -116,6 +116,19 @@ interface NewsSnapshot {
   items: NewsItem[]
 }
 
+interface FxApiResponse {
+  rates?: Record<string, number>
+  time_last_update_unix?: number
+}
+
+interface CryptoApiRow {
+  usd?: number
+  cny?: number
+  last_updated_at?: number
+}
+
+type CryptoApiResponse = Record<string, CryptoApiRow>
+
 const cache = new Map<string, {expiresAt: number; value: unknown}>()
 
 const getCache = <T>(key: string): T | null => {
@@ -197,7 +210,7 @@ const fetchUsdToCny = async (): Promise<number | undefined> => {
   try {
     const response = await withTimeout(USD_RATE_URL, 2500)
     if (!response.ok) return undefined
-    const data = (await response.json()) as any
+    const data = (await response.json()) as FxApiResponse
     const cnyRate = Number(data?.rates?.CNY)
     if (Number.isFinite(cnyRate) && cnyRate > 0) {
       setCache(cacheKey, cnyRate)
@@ -257,7 +270,7 @@ const fetchFxRate = async (base: string, quote: string): Promise<FxSnapshot> => 
   const url = `${FX_RATE_URL}${base}`
   const response = await withTimeout(url, 3500)
   if (!response.ok) throw new Error(`FX fetch failed: ${response.status}`)
-  const data = (await response.json()) as any
+  const data = (await response.json()) as FxApiResponse
   const rate = Number(data?.rates?.[quote])
   if (!Number.isFinite(rate) || rate <= 0) throw new Error('FX rate invalid')
 
@@ -287,7 +300,7 @@ const fetchCryptoPrices = async (ids: Array<{id: string; label: string}>): Promi
     '&vs_currencies=usd,cny&include_last_updated_at=true'
   const response = await withTimeout(url, 4000)
   if (!response.ok) throw new Error(`Crypto fetch failed: ${response.status}`)
-  const data = (await response.json()) as Record<string, any>
+  const data = (await response.json()) as CryptoApiResponse
 
   const result = ids
     .map((item) => {

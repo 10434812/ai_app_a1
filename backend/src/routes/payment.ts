@@ -22,6 +22,18 @@ const WECHAT_OUT_TRADE_NO_REGEX = /^[0-9a-fA-F]{32}$/
 
 const buildWeChatOutTradeNo = (orderId: string) => orderId.replace(/-/g, '').slice(0, 32)
 
+const toOrderPlan = (planKey: PlanKey): Order['plan'] => {
+  if (planKey.startsWith('token_pack')) return 'token_pack'
+  if (planKey === 'monthly' || planKey === 'quarterly' || planKey === 'yearly') return planKey
+  return 'token_pack'
+}
+
+const readErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return ''
+}
+
 const resolveOrderIdFromWeChatOutTradeNo = (value: string) => {
   const trimmed = String(value || '').trim()
   if (!trimmed) return ''
@@ -37,14 +49,14 @@ const readIdempotencyToken = (req: Request) => {
 }
 
 const isIdempotencyLockedError = (error: unknown) => {
-  return String((error as any)?.message || '') === 'IDEMPOTENCY_LOCKED'
+  return readErrorMessage(error) === 'IDEMPOTENCY_LOCKED'
 }
 
 const isOrderLockedError = (error: unknown) => {
-  return String((error as any)?.message || '').startsWith('ORDER_LOCKED:')
+  return readErrorMessage(error).startsWith('ORDER_LOCKED:')
 }
 
-const reportPaymentSecurityAlert = async (event: string, context: Record<string, any>) => {
+const reportPaymentSecurityAlert = async (event: string, context: Record<string, unknown>) => {
   const key = `security:payment:${event}`
   console.error(`[SECURITY_ALERT][${event}]`, context)
   try {
@@ -56,13 +68,13 @@ const reportPaymentSecurityAlert = async (event: string, context: Record<string,
 }
 
 paymentRouter.get('/plans', async (_req: Request, res: Response) => {
-  const tokenPacks = Object.entries(PAYMENT_PLANS)
+  const tokenPacks = (Object.entries(PAYMENT_PLANS) as [PlanKey, (typeof PAYMENT_PLANS)[PlanKey]][])
     .filter(([key]) => key.includes('token_pack'))
     .map(([key, plan]) => ({
       key,
-      name: (plan as any).name,
-      amount: (plan as any).amount,
-      tokens: (plan as any).tokens || 0,
+      name: plan.name,
+      amount: plan.amount,
+      tokens: plan.tokens || 0,
     }))
 
   res.json({
@@ -208,7 +220,7 @@ paymentRouter.post('/checkout', authenticateToken, withRateLimit('payment'), asy
         const order = await Order.create({
           userId,
           amount: plan.amount,
-          plan: planKey.includes('token') ? 'token_pack' : (planKey as any),
+          plan: toOrderPlan(selectedPlanKey),
           planKey: selectedPlanKey,
           planSnapshot: makePlanSnapshot(selectedPlanKey, plan),
           status: 'pending',
@@ -221,8 +233,8 @@ paymentRouter.post('/checkout', authenticateToken, withRateLimit('payment'), asy
             return {
               orderId: order.id,
               status: 'pending',
-              codeUrl: (result as any).code_url || '',
-              isMock: !!(result as any).mock,
+              codeUrl: result.code_url || '',
+              isMock: !!result.mock,
               paymentType: 'native',
             }
           } catch (error) {
@@ -254,15 +266,15 @@ paymentRouter.post('/checkout', authenticateToken, withRateLimit('payment'), asy
             return {
               orderId: order.id,
               status: 'pending',
-              isMock: !!(result as any).mock,
+              isMock: !!result.mock,
               paymentType: 'jsapi',
               jsapiParams: {
-                appId: (result as any).appId,
-                timeStamp: (result as any).timeStamp,
-                nonceStr: (result as any).nonceStr,
-                package: (result as any).package,
-                signType: (result as any).signType,
-                paySign: (result as any).paySign,
+                appId: result.appId,
+                timeStamp: result.timeStamp,
+                nonceStr: result.nonceStr,
+                package: result.package,
+                signType: result.signType,
+                paySign: result.paySign,
               },
             }
           } catch (error) {
@@ -315,7 +327,7 @@ paymentRouter.get('/status/:orderId', authenticateToken, async (req: Request, re
       return res.status(404).json({error: 'Order not found'})
     }
     const isOwner = order.userId === req.user!.id
-    const isAdmin = ADMIN_ROLES.has(req.user!.role as any)
+    const isAdmin = ADMIN_ROLES.has(req.user!.role)
     if (!isOwner && !isAdmin) {
       return res.status(403).json({error: 'Forbidden'})
     }

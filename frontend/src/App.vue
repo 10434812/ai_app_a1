@@ -29,7 +29,7 @@ const updateShare = async () => {
 onMounted(async () => {
   await initWeChat()
   updateShare()
-  trackVisit(route.path, authStore.token)
+  trackVisit(route.path)
 })
 
 watch(
@@ -39,7 +39,7 @@ watch(
     // iOS uses entry URL (also handled)
     await initWeChat()
     updateShare()
-    trackVisit(route.path, authStore.token)
+    trackVisit(route.path)
   },
 )
 </script>

@@ -18,8 +18,14 @@ export const getAnalysisStats = async () => {
   }
 }
 
-export const getUserPortraits = async () => {
-  const users = await User.findAll({
+export const getUserPortraits = async (page = 1, pageSize = 50) => {
+  const safePage = Math.max(1, Number(page) || 1)
+  const safePageSize = Math.min(100, Math.max(1, Number(pageSize) || 50))
+  const offset = (safePage - 1) * safePageSize
+  const {rows: users, count: total} = await User.findAndCountAll({
+    order: [['createdAt', 'DESC']],
+    limit: safePageSize,
+    offset,
     include: [
       {
         model: Conversation,
@@ -63,7 +69,12 @@ export const getUserPortraits = async () => {
     }
   })
 
-  return portraits
+  return {
+    items: portraits,
+    total,
+    page: safePage,
+    pageSize: safePageSize,
+  }
 }
 
 export const getRecentQuestions = async (limit = 50) => {

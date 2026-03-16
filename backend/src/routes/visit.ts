@@ -26,8 +26,8 @@ router.post('/track', optionalAuthenticateToken, async (req: Request, res: Respo
 
     res.json({success: true})
   } catch (error) {
-    console.error('Track visit error:', error)
-    res.status(500).json({error: 'Failed to track visit'})
+    console.warn('Track visit skipped:', error)
+    res.status(204).end()
   }
 })
 

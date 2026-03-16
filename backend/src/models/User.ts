@@ -1,5 +1,6 @@
 import {Table, Column, Model, DataType, PrimaryKey, Default, IsUUID, HasMany} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {Conversation} from './Conversation.ts'
 
 @Table({
@@ -109,5 +110,5 @@ export class User extends Model {
   declare avatar: string
 
   @HasMany(() => Conversation)
-  declare conversations: Conversation[]
+  declare conversations: NonAttribute<Conversation[]>
 }

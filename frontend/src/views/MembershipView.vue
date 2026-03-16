@@ -9,14 +9,27 @@ import FeatureComparison from '../components/membership/FeatureComparison.vue'
 import FaqSection from '../components/membership/FaqSection.vue'
 import PaymentModal from '../components/membership/PaymentModal.vue'
 
+interface MembershipPlan {
+  id: 'free' | 'pro' | 'premium'
+  name: string
+  price: string
+  period: string
+  features: string[]
+  current: boolean
+  popular?: boolean
+  color: string
+  description: string
+  paymentPlanKey: string
+}
+
 const authStore = useAuthStore()
 const router = useRouter()
 
 const billingCycle = ref<'monthly' | 'yearly'>('monthly')
 const showPaymentModal = ref(false)
-const selectedPlan = ref<any>(null)
+const selectedPlan = ref<MembershipPlan | null>(null)
 
-const plans = [
+const plans: MembershipPlan[] = [
   {
     id: 'free',
     name: '免费版',
@@ -63,7 +76,7 @@ const processedPlans = computed(() => {
   }))
 })
 
-const handleSubscribe = (plan: any) => {
+const handleSubscribe = (plan: MembershipPlan) => {
   if (!authStore.isAuthenticated) {
     router.push('/login')
     return

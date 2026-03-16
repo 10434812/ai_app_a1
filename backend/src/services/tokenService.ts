@@ -5,13 +5,14 @@ import {Op} from 'sequelize'
 import type {Transaction} from 'sequelize'
 
 const DEBIT_TYPES = new Set(['chat', 'image', 'refund', 'manual_debit'])
+type TokenUsageMeta = Record<string, unknown> | null | undefined
 
 export const recordTokenUsage = async (
   userId: string,
   amount: number,
   type: string,
   model?: string,
-  meta?: any,
+  meta?: TokenUsageMeta,
   options?: {transaction?: Transaction},
 ) => {
   // If amount is 0, do nothing
@@ -72,7 +73,7 @@ export const adjustUserTokens = async (
   delta: number,
   type: string,
   model?: string,
-  meta?: any,
+  meta?: TokenUsageMeta,
 ) => {
   if (!delta) return
   const amount = Math.abs(Math.floor(delta))
@@ -133,7 +134,7 @@ interface SettleChatReservationInput {
   reservedAmount: number
   actualCost: number
   model?: string
-  meta?: any
+  meta?: TokenUsageMeta
 }
 
 export const settleReservedChatUsage = async (input: SettleChatReservationInput) => {
@@ -232,7 +233,15 @@ export const getTokenHistory = async (
   endDate?: Date,
 ) => {
   const offset = (page - 1) * limit
-  const where: any = {userId}
+  const where: {
+    userId: string
+    type?: string
+    model?: string
+    createdAt?: {
+      [Op.gte]?: Date
+      [Op.lte]?: Date
+    }
+  } = {userId}
   if (type) where.type = type
   if (model) where.model = model
   if (startDate || endDate) {

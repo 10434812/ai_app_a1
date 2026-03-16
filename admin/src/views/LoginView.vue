@@ -2,28 +2,13 @@
 import {ref} from 'vue'
 import {useRouter} from 'vue-router'
 import {useAuthStore} from '../stores/auth'
+import {extractApiErrorMessage, extractThrownErrorMessage} from '../utils/apiError'
 
-const defaultEmail = import.meta.env.VITE_ADMIN_DEFAULT_EMAIL || ''
-const defaultPassword = import.meta.env.VITE_ADMIN_DEFAULT_PASSWORD || ''
-
-const email = ref(defaultEmail)
-const password = ref(defaultPassword)
+const email = ref('')
+const password = ref('')
 const error = ref('')
 const router = useRouter()
 const authStore = useAuthStore()
-
-const extractApiErrorMessage = (payload: any, fallback: string) => {
-  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) {
-    return payload.error.message.trim()
-  }
-  if (typeof payload?.error === 'string' && payload.error.trim()) {
-    return payload.error.trim()
-  }
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message.trim()
-  }
-  return fallback
-}
 
 const humanizeAdminLoginError = (status: number, rawMessage: string) => {
   if (status === 401 || status === 404) return '账号不存在或密码错误'
@@ -33,21 +18,13 @@ const humanizeAdminLoginError = (status: number, rawMessage: string) => {
   return rawMessage || '登录失败，请稍后重试'
 }
 
-const extractThrownErrorMessage = (err: unknown, fallback: string) => {
-  if (typeof err === 'string' && err.trim()) return err.trim()
-  if (err instanceof Error && err.message.trim()) return err.message.trim()
-  if (typeof (err as any)?.message === 'string' && (err as any).message.trim()) {
-    return (err as any).message.trim()
-  }
-  return extractApiErrorMessage(err, fallback)
-}
-
 async function handleLogin() {
   error.value = ''
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
       body: JSON.stringify({email: email.value, password: password.value}),
     })
 
@@ -62,7 +39,7 @@ async function handleLogin() {
       throw new Error('当前账号无后台权限')
     }
 
-    authStore.setAuth(data.token, data.user)
+    authStore.setAuth('cookie', data.user)
     router.push('/')
   } catch (e) {
     error.value = extractThrownErrorMessage(e, '登录失败，请稍后重试')

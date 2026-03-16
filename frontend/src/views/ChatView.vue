@@ -10,11 +10,53 @@ import {useAppStore} from '../stores/app'
 import {renderMarkdown} from '../utils/markdown'
 import {getModelLogoCandidates} from '../utils/modelLogo'
 import {useWeChatShare} from '../composables/useWeChatShare'
+import {extractApiErrorMessage} from '../utils/apiError'
 import PromptMarketModal from '../components/PromptMarketModal.vue'
 import Sidebar from '../components/Sidebar.vue'
 import UserProfileModal from '../components/UserProfileModal.vue'
 import RegisterModal from '../components/RegisterModal.vue'
 import UserAvatar from '../components/UserAvatar.vue'
+
+interface SpeechRecognitionAlternativeLike {
+  transcript?: string
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean
+  [index: number]: SpeechRecognitionAlternativeLike
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number
+  results: ArrayLike<SpeechRecognitionResultLike>
+}
+
+interface SpeechRecognitionLike {
+  lang: string
+  interimResults: boolean
+  continuous: boolean
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  start(): void
+  stop(): void
+}
+
+interface SpeechRecognitionConstructorLike {
+  new (): SpeechRecognitionLike
+}
+
+interface BrowserWindowLike extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructorLike
+  webkitSpeechRecognition?: SpeechRecognitionConstructorLike
+}
+
+interface WeChatVoiceResponse {
+  localId?: string
+  errMsg?: string
+  message?: string
+  translateResult?: string
+}
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -221,7 +263,7 @@ const conversationId = ref<string | null>(null)
 const isListening = ref(false)
 const speechSupported = ref(false)
 const ttsSupported = ref(false)
-const recognitionRef = ref<any | null>(null)
+const recognitionRef = ref<SpeechRecognitionLike | null>(null)
 const listenBase = ref('')
 const speakingKey = ref<string | null>(null)
 const shareCopied = ref(false)
@@ -303,7 +345,7 @@ const sidebarOpen = ref(window.innerWidth >= 1024)
 const showProfile = ref(false)
 const isDark = ref(false)
 // Remove sidebarRef since it's handled by MainLayout
-// const sidebarRef = ref<any>(null)
+// const sidebarRef = ref<HTMLElement | null>(null)
 
 // Dark Mode
 function toggleDark() {
@@ -554,19 +596,6 @@ function normalizeErrorMessage(error: unknown): string {
   return '请求失败'
 }
 
-function extractApiErrorMessage(payload: any, fallback = '请求失败'): string {
-  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) {
-    return payload.error.message.trim()
-  }
-  if (typeof payload?.error === 'string' && payload.error.trim()) {
-    return payload.error.trim()
-  }
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message.trim()
-  }
-  return fallback
-}
-
 function sanitizeTextOnlyContent(content: string): string {
   if (!content) return ''
   return content
@@ -716,7 +745,7 @@ onMounted(() => {
   // Default to expanded when entering chat page.
   isModelPanelExpanded.value = true
 
-  const win = window as any
+  const win = window as BrowserWindowLike
   if (isWeChat) {
     speechSupported.value = true
     initWeChat().catch(() => {})
@@ -828,7 +857,7 @@ function getModelName(id: string): string {
 }
 
 function getModelTooltip(id: string): string {
-  const model = models.find((m) => m.id === id) as any
+  const model = models.find((m) => m.id === id)
   if (disabledModelIds.value.includes(id)) {
     return `${model?.description || model?.name || id}（已被管理员禁用）`
   }
@@ -1056,8 +1085,9 @@ function applyVoiceTranscript(text: string) {
   })
 }
 
-function getWeChatVoiceErrorMessage(error: any, fallback: string) {
-  const raw = error?.errMsg || error?.message || ''
+function getWeChatVoiceErrorMessage(error: unknown, fallback: string) {
+  const normalized = error as WeChatVoiceResponse | Error | null | undefined
+  const raw = normalized instanceof Error ? normalized.message : normalized?.errMsg || normalized?.message || ''
   if (!raw) return fallback
   if (String(raw).includes('cancel')) return '你取消了微信录音授权，请重新点击允许'
   if (String(raw).includes('permission')) return '微信录音权限未开启，请先允许麦克风权限'
@@ -1071,7 +1101,7 @@ async function translateWeChatVoice(localId: string) {
     wx.translateVoice({
       localId,
       isShowProgressTips: 1,
-      success: (res: any) => {
+      success: (res: WeChatVoiceResponse) => {
         resolve(res?.translateResult || '')
       },
       fail: reject,
@@ -1189,7 +1219,7 @@ async function startListening() {
       showInputNotice('正在录音，再点一次麦克风结束并转文字', 'info', 1800)
 
       wx.onVoiceRecordEnd({
-        complete: (res: any) => {
+        complete: (res: WeChatVoiceResponse) => {
           finalizeWeChatVoice(res?.localId)
         },
       })
@@ -1199,7 +1229,7 @@ async function startListening() {
     return
   }
 
-  const win = window as any
+  const win = window as BrowserWindowLike
   const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition
   if (!SpeechRecognition) return
 
@@ -1209,7 +1239,7 @@ async function startListening() {
   recognition.continuous = true
   listenBase.value = question.value ? `${question.value} ` : ''
 
-  recognition.onresult = (event: any) => {
+  recognition.onresult = (event: SpeechRecognitionEventLike) => {
     let finalTranscript = ''
     let interimTranscript = ''
 
@@ -1253,10 +1283,10 @@ function stopListening() {
   if (isWeChat) {
     if (isListening.value) {
       wx.stopRecord({
-        success: (res: any) => {
+        success: (res: WeChatVoiceResponse) => {
           finalizeWeChatVoice(res?.localId)
         },
-        fail: (error: any) => {
+        fail: (error: unknown) => {
           isListening.value = false
           showInputNotice(getWeChatVoiceErrorMessage(error, '停止录音失败，请重试'), 'error')
         },
@@ -1382,7 +1412,7 @@ async function regenerateResponse(turnIndex: number, modelId: string) {
         }
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     result.content += `\n[Error: ${normalizeErrorMessage(error)}]`
   } finally {
     result.streaming = false
@@ -1450,7 +1480,7 @@ async function copyShareLink(shareUrl?: string) {
     setTimeout(() => {
       shareCopied.value = false
     }, 1500)
-  } catch (e: any) {
+  } catch (e: unknown) {
     shareError.value = '复制失败，请手动复制链接'
   }
 }
@@ -1472,8 +1502,8 @@ async function handleShareClick() {
         url: shareData.link,
       })
       return
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
     }
   }
 
@@ -1810,7 +1840,7 @@ async function handleGenerate() {
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (res.content === '正在思考中...') {
         res.content = ''
       }
@@ -1936,7 +1966,7 @@ async function handleToolAction(turnIndex: number, resultId: string, type: strin
         }
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (output.content === '处理中...') {
       output.content = ''
     }

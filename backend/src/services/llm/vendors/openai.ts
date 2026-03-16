@@ -1,7 +1,32 @@
 import {BaseLLMProvider} from '../provider.ts'
 import {ChatMessage, ChatStreamResult, LLMUsage} from '../types.ts'
 
-function extractContentFromChoice(payload: any): string {
+interface OpenAIContentPart {
+  text?: string
+}
+
+interface OpenAIChoice {
+  delta?: {content?: string}
+  message?: {content?: string | OpenAIContentPart[]}
+}
+
+interface OpenAIUsagePayload {
+  prompt_tokens?: number
+  input_tokens?: number
+  completion_tokens?: number
+  output_tokens?: number
+  total_tokens?: number
+}
+
+interface OpenAIResponsePayload {
+  choices?: OpenAIChoice[]
+  usage?: OpenAIUsagePayload
+  data?: {usage?: OpenAIUsagePayload}
+  error?: {message?: string}
+  message?: string
+}
+
+function extractContentFromChoice(payload: OpenAIResponsePayload | null): string {
   const choice = payload?.choices?.[0]
   if (!choice) return ''
 
@@ -15,7 +40,7 @@ function extractContentFromChoice(payload: any): string {
   const messageContent = choice?.message?.content
   if (Array.isArray(messageContent)) {
     return messageContent
-      .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+      .map((part) => (typeof part?.text === 'string' ? part.text : ''))
       .join('')
   }
 
@@ -33,7 +58,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   async chatStream(messages: ChatMessage[], onData: (chunk: string) => void): Promise<ChatStreamResult> {
-    const parseUsage = (payload: any): LLMUsage | undefined => {
+    const parseUsage = (payload: OpenAIResponsePayload | null): LLMUsage | undefined => {
       const usage = payload?.usage || payload?.data?.usage
       if (!usage) return undefined
 
@@ -76,9 +101,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     const contentType = (response.headers.get('content-type') || '').toLowerCase()
     if (!contentType.includes('text/event-stream')) {
       const bodyText = await response.text()
-      let parsed: any = null
+      let parsed: OpenAIResponsePayload | null = null
       try {
-        parsed = bodyText ? JSON.parse(bodyText) : null
+        parsed = bodyText ? (JSON.parse(bodyText) as OpenAIResponsePayload) : null
       } catch {
         parsed = null
       }
@@ -121,7 +146,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           if (!raw || raw === '[DONE]') continue
 
           try {
-            const data = JSON.parse(raw)
+            const data = JSON.parse(raw) as OpenAIResponsePayload
             streamUsage = parseUsage(data) || streamUsage
             const content = extractContentFromChoice(data)
             if (content) {
@@ -141,7 +166,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       try {
         const raw = buffer.trim().replace(/^data:\s?/, '')
         if (raw && raw !== '[DONE]') {
-          const data = JSON.parse(raw)
+          const data = JSON.parse(raw) as OpenAIResponsePayload
           streamUsage = parseUsage(data) || streamUsage
           const content = extractContentFromChoice(data)
           if (content) {
@@ -176,9 +201,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
 
     const fallbackText = await fallbackResponse.text()
-    let fallbackJson: any = null
+    let fallbackJson: OpenAIResponsePayload | null = null
     try {
-      fallbackJson = fallbackText ? JSON.parse(fallbackText) : null
+      fallbackJson = fallbackText ? (JSON.parse(fallbackText) as OpenAIResponsePayload) : null
     } catch {
       fallbackJson = null
     }

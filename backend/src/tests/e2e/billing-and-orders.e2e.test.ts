@@ -5,6 +5,14 @@ import mysql from 'mysql2/promise'
 import request from 'supertest'
 import type {Express} from 'express'
 
+type DbModule = typeof import('../../config/db.ts')
+type RedisModule = typeof import('../../config/redis.ts')
+type UserModelModule = typeof import('../../models/User.ts')
+type OrderModelModule = typeof import('../../models/Order.ts')
+type TokenUsageRecordModelModule = typeof import('../../models/TokenUsageRecord.ts')
+type SystemConfigModelModule = typeof import('../../models/SystemConfig.ts')
+type MediaTaskServiceModule = typeof import('../../services/media/mediaTaskService.ts')
+
 const TEST_DB_NAME = process.env.DB_NAME_TEST || `ai_app_test_${Date.now()}`
 
 process.env.NODE_ENV = 'test'
@@ -19,18 +27,19 @@ process.env.WX_PAY_MOCK = 'true'
 process.env.ENABLE_ADMIN_SEED = 'false'
 
 let app: Express
-let sequelize: any
-let redisClient: any
-let User: any
-let Order: any
-let TokenUsageRecord: any
-let SystemConfig: any
-let mediaTaskService: any
+let sequelize: DbModule['sequelize']
+let redisClient: RedisModule['default']
+let User: UserModelModule['User']
+let Order: OrderModelModule['Order']
+let TokenUsageRecord: TokenUsageRecordModelModule['TokenUsageRecord']
+let SystemConfig: SystemConfigModelModule['SystemConfig']
+let mediaTaskService: MediaTaskServiceModule
 
 const authHeader = (token: string) => ({Authorization: `Bearer ${token}`})
-const parseErrorMessage = (body: any) => {
-  if (typeof body?.error === 'string') return body.error
-  if (typeof body?.error?.message === 'string') return body.error.message
+const parseErrorMessage = (body: unknown) => {
+  const normalized = body as {error?: string | {message?: string}} | null
+  if (typeof normalized?.error === 'string') return normalized.error
+  if (typeof normalized?.error?.message === 'string') return normalized.error.message
   return ''
 }
 
@@ -254,7 +263,7 @@ test(
         assert.ok(taskId, 'image task id should exist')
 
         let taskStatus = 'pending'
-        let taskResult: any = null
+        let taskResult: {images?: unknown[]; tokenCost?: number} | null = null
         for (let i = 0; i < 20; i += 1) {
           const taskResponse = await request(app).get(`/api/media/tasks/${taskId}`).set(authHeader(account.token))
           assert.equal(taskResponse.status, 200, `task status failed: ${JSON.stringify(taskResponse.body)}`)

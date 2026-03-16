@@ -3,6 +3,7 @@ import {ref, onMounted} from 'vue'
 import {useRouter, useRoute} from 'vue-router'
 import {useAuthStore} from '../stores/auth'
 import {API_BASE_URL} from '../constants/config'
+import {extractApiErrorMessage, extractThrownErrorMessage} from '../utils/apiError'
 
 const email = ref('')
 const password = ref('')
@@ -18,34 +19,12 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-const extractApiErrorMessage = (payload: any, fallback: string) => {
-  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) {
-    return payload.error.message.trim()
-  }
-  if (typeof payload?.error === 'string' && payload.error.trim()) {
-    return payload.error.trim()
-  }
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message.trim()
-  }
-  return fallback
-}
-
 const humanizeLoginError = (status: number, rawMessage: string) => {
   if (status === 401 || status === 404) return '账号不存在或密码错误'
   if (status === 403) return '账号无权限登录或已被禁用'
   if (status === 429) return '登录过于频繁，请稍后再试'
   if (status >= 500) return '服务器开小差了，请稍后重试'
   return rawMessage || '登录失败，请稍后重试'
-}
-
-const extractThrownErrorMessage = (err: unknown, fallback: string) => {
-  if (typeof err === 'string' && err.trim()) return err.trim()
-  if (err instanceof Error && err.message.trim()) return err.message.trim()
-  if (typeof (err as any)?.message === 'string' && (err as any).message.trim()) {
-    return (err as any).message.trim()
-  }
-  return extractApiErrorMessage(err, fallback)
 }
 
 onMounted(async () => {
@@ -91,14 +70,19 @@ async function handleForgotPassword() {
   forgotMessage.value = ''
 
   try {
-    // Mock API call - in production this would be a real endpoint
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    // Simulate success
+    const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({email: forgotEmail.value}),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(extractApiErrorMessage(data, '发送失败，请稍后重试。'))
+    }
     forgotStatus.value = 'success'
-    forgotMessage.value = '重置密码链接已发送至您的邮箱，请查收。'
+    forgotMessage.value = extractApiErrorMessage(data, '重置密码链接已发送，请查收。')
 
-    // Close modal after 3 seconds
     setTimeout(() => {
       showForgotPasswordModal.value = false
       forgotStatus.value = 'idle'
@@ -107,7 +91,7 @@ async function handleForgotPassword() {
     }, 3000)
   } catch (err) {
     forgotStatus.value = 'error'
-    forgotMessage.value = '发送失败，请稍后重试。'
+    forgotMessage.value = extractThrownErrorMessage(err, '发送失败，请稍后重试。')
   }
 }
 
@@ -117,6 +101,7 @@ async function handleLogin() {
     const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
       body: JSON.stringify({email: email.value, password: password.value}),
     })
 
@@ -126,7 +111,7 @@ async function handleLogin() {
       throw new Error(humanizeLoginError(res.status, rawMessage))
     }
 
-    authStore.setAuth(data.token, data.user)
+    authStore.setAuth('cookie', data.user)
     router.push('/')
   } catch (e) {
     error.value = extractThrownErrorMessage(e, '登录失败，请稍后重试')

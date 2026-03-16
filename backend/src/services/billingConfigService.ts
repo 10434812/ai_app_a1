@@ -23,21 +23,38 @@ export interface BillingConfig {
   imageRates: Record<string, ImageRate>
 }
 
+type JsonRecord = Record<string, unknown>
+
 const safeNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 0) return fallback
   return parsed
 }
 
-const normalizeChatRate = (value: any, fallback: ChatRate): ChatRate => ({
-  inputPer1K: safeNumber(value?.inputPer1K, fallback.inputPer1K),
-  outputPer1K: safeNumber(value?.outputPer1K, fallback.outputPer1K),
-})
+const normalizeChatRate = (value: unknown, fallback: ChatRate): ChatRate => {
+  const normalized = value && typeof value === 'object' ? (value as JsonRecord) : {}
+  return {
+    inputPer1K: safeNumber(normalized.inputPer1K, fallback.inputPer1K),
+    outputPer1K: safeNumber(normalized.outputPer1K, fallback.outputPer1K),
+  }
+}
 
-const normalizeImageRate = (value: any, fallback: ImageRate): ImageRate => ({
-  promptPer1K: safeNumber(value?.promptPer1K, fallback.promptPer1K),
-  perImage: safeNumber(value?.perImage, fallback.perImage),
-})
+const normalizeImageRate = (value: unknown, fallback: ImageRate): ImageRate => {
+  const normalized = value && typeof value === 'object' ? (value as JsonRecord) : {}
+  return {
+    promptPer1K: safeNumber(normalized.promptPer1K, fallback.promptPer1K),
+    perImage: safeNumber(normalized.perImage, fallback.perImage),
+  }
+}
+
+const parseJsonRecord = (raw: string): JsonRecord => {
+  try {
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? (parsed as JsonRecord) : {}
+  } catch {
+    return {}
+  }
+}
 
 const buildDefaultChatRates = () => {
   const rates: Record<string, ChatRate> = {}
@@ -88,31 +105,10 @@ export const getBillingConfig = async (): Promise<BillingConfig> => {
     getConfigValue(KEY_DEFAULT_IMAGE_RATE),
   ])
 
-  let chatRatesParsed: Record<string, any> = {}
-  let imageRatesParsed: Record<string, any> = {}
-  let defaultChatParsed: any = {}
-  let defaultImageParsed: any = {}
-
-  try {
-    chatRatesParsed = chatRatesRaw ? JSON.parse(chatRatesRaw) : {}
-  } catch {
-    chatRatesParsed = {}
-  }
-  try {
-    imageRatesParsed = imageRatesRaw ? JSON.parse(imageRatesRaw) : {}
-  } catch {
-    imageRatesParsed = {}
-  }
-  try {
-    defaultChatParsed = defaultChatRaw ? JSON.parse(defaultChatRaw) : {}
-  } catch {
-    defaultChatParsed = {}
-  }
-  try {
-    defaultImageParsed = defaultImageRaw ? JSON.parse(defaultImageRaw) : {}
-  } catch {
-    defaultImageParsed = {}
-  }
+  const chatRatesParsed = parseJsonRecord(chatRatesRaw)
+  const imageRatesParsed = parseJsonRecord(imageRatesRaw)
+  const defaultChatParsed = parseJsonRecord(defaultChatRaw)
+  const defaultImageParsed = parseJsonRecord(defaultImageRaw)
 
   const normalizedDefaultChat = normalizeChatRate(defaultChatParsed, defaultChatRate)
   const normalizedDefaultImage = normalizeImageRate(defaultImageParsed, defaultImageRate)

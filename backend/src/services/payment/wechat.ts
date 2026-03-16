@@ -1,4 +1,5 @@
 import WxPay from 'wechatpay-node-v3'
+import type {IncomingHttpHeaders} from 'http'
 import {SystemConfig} from '../../models/SystemConfig.ts'
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
@@ -56,6 +57,43 @@ export interface WeChatJsapiCheckoutResult {
 }
 
 type WeChatCheckoutResult = WeChatNativeCheckoutResult | WeChatJsapiCheckoutResult
+type WeChatRefundRequest = Parameters<WxPay['refunds']>[0]
+
+interface WeChatApiResponse<TData> {
+  status?: number
+  data?: TData
+  error?: string
+}
+
+interface WeChatNativeResponseData {
+  code_url?: string
+}
+
+interface WeChatJsapiResponseData {
+  appId?: string
+  timeStamp?: string
+  nonceStr?: string
+  package?: string
+  signType?: string
+  paySign?: string
+}
+
+interface WeChatEncryptedResource {
+  ciphertext: string
+  associated_data: string
+  nonce: string
+}
+
+interface WeChatRefundResponseData {
+  refund_id?: string
+  status?: string
+  success_time?: string
+}
+
+const normalizeHeaderValue = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
 
 const CONFIG_KEYS = [
   'WECHAT_PAY_ENABLED',
@@ -207,7 +245,7 @@ class WeChatPayService {
       }
     }
 
-    const result = await client.transactions_native({
+    const result = (await client.transactions_native({
       description,
       out_trade_no: orderId,
       notify_url: config.notifyUrl,
@@ -215,15 +253,15 @@ class WeChatPayService {
         total: Math.round(amount * 100),
         currency: 'CNY',
       },
-    })
+    })) as WeChatApiResponse<WeChatNativeResponseData>
 
-    if ((result as any)?.status !== 200 || !(result as any)?.data?.code_url) {
-      throw new Error((result as any)?.error || '微信 Native 下单失败')
+    if (result?.status !== 200 || !result?.data?.code_url) {
+      throw new Error(result?.error || '微信 Native 下单失败')
     }
 
     return {
       type: 'native',
-      code_url: (result as any).data.code_url || '',
+      code_url: result.data.code_url || '',
     }
   }
 
@@ -252,7 +290,7 @@ class WeChatPayService {
       }
     }
 
-    const result = await client.transactions_jsapi({
+    const result = (await client.transactions_jsapi({
       description,
       out_trade_no: orderId,
       notify_url: config.notifyUrl,
@@ -263,33 +301,33 @@ class WeChatPayService {
       payer: {
         openid,
       },
-    })
+    })) as WeChatApiResponse<WeChatJsapiResponseData>
 
-    if ((result as any)?.status !== 200 || !(result as any)?.data?.package) {
-      throw new Error((result as any)?.error || '微信 JSAPI 下单失败')
+    if (result?.status !== 200 || !result?.data?.package) {
+      throw new Error(result?.error || '微信 JSAPI 下单失败')
     }
 
     return {
       type: 'jsapi',
-      appId: String((result as any).data.appId || ''),
-      timeStamp: String((result as any).data.timeStamp || ''),
-      nonceStr: String((result as any).data.nonceStr || ''),
-      package: String((result as any).data.package || ''),
-      signType: String((result as any).data.signType || 'RSA'),
-      paySign: String((result as any).data.paySign || ''),
+      appId: String(result.data.appId || ''),
+      timeStamp: String(result.data.timeStamp || ''),
+      nonceStr: String(result.data.nonceStr || ''),
+      package: String(result.data.package || ''),
+      signType: String(result.data.signType || 'RSA'),
+      paySign: String(result.data.paySign || ''),
     }
   }
 
-  async verifySignature(headers: Record<string, any>, body: any) {
+  async verifySignature(headers: IncomingHttpHeaders, body: unknown) {
     const {config, client} = await this.createClient()
     if (!client) {
       return !IS_PRODUCTION
     }
 
-    const timestamp = headers['wechatpay-timestamp']
-    const nonce = headers['wechatpay-nonce']
-    const serial = headers['wechatpay-serial']
-    const signature = headers['wechatpay-signature']
+    const timestamp = normalizeHeaderValue(headers['wechatpay-timestamp'])
+    const nonce = normalizeHeaderValue(headers['wechatpay-nonce'])
+    const serial = normalizeHeaderValue(headers['wechatpay-serial'])
+    const signature = normalizeHeaderValue(headers['wechatpay-signature'])
     if (!timestamp || !nonce || !serial || !signature) return false
 
     const bodyPayload = typeof body === 'string' ? body : JSON.stringify(body || {})
@@ -303,7 +341,7 @@ class WeChatPayService {
     })
   }
 
-  async decryptResource(resource: any) {
+  async decryptResource(resource: WeChatEncryptedResource) {
     const {config, client} = await this.createClient()
     if (!client) return resource
     const {ciphertext, associated_data, nonce} = resource
@@ -334,7 +372,7 @@ class WeChatPayService {
 
     const total = Math.max(1, Math.round(Number(params.totalAmount || 0) * 100))
     const refund = Math.max(1, Math.round(Number(params.refundAmount || 0) * 100))
-    const payload: Record<string, any> = {
+    const payloadBase = {
       out_refund_no: outRefundNo,
       reason: params.reason || 'admin_refund',
       notify_url: params.notifyUrl || config.notifyUrl,
@@ -345,18 +383,22 @@ class WeChatPayService {
       },
     }
 
-    if (params.transactionId) {
-      payload.transaction_id = params.transactionId
-    } else {
-      payload.out_trade_no = params.outTradeNo || params.orderId
-    }
+    const payload: WeChatRefundRequest = params.transactionId
+      ? {
+          ...payloadBase,
+          transaction_id: params.transactionId,
+        }
+      : {
+          ...payloadBase,
+          out_trade_no: params.outTradeNo || params.orderId,
+        }
 
-    const result = await client.refunds(payload as any)
+    const result = (await client.refunds(payload)) as WeChatApiResponse<WeChatRefundResponseData>
     return {
       outRefundNo,
-      refundId: (result as any)?.data?.refund_id,
-      status: (result as any)?.data?.status,
-      successTime: (result as any)?.data?.success_time,
+      refundId: result?.data?.refund_id,
+      status: result?.data?.status,
+      successTime: result?.data?.success_time,
       mock: false,
     }
   }

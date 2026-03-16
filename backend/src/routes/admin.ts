@@ -1,5 +1,5 @@
 import express, {Request, Response} from 'express'
-import {Op} from 'sequelize'
+import {Op, type Transaction} from 'sequelize'
 import {getMetrics, getUsers, toggleUserStatus} from '../services/userService.ts'
 import {
   getAnalysisStats,
@@ -35,10 +35,31 @@ import {sendError} from '../errors/api.ts'
 import {buildIdempotencyKey, createRequestFingerprint, runIdempotent, withOrderLock} from '../services/idempotencyService.ts'
 import {getExportableSystemConfigs, upsertSystemConfigs} from '../services/configSyncService.ts'
 import {weChatPayService} from '../services/payment/wechat.ts'
+import {withRateLimit} from '../middleware/rateLimit.ts'
+import {buildCsv} from '../utils/csv.ts'
 
 const router = express.Router()
 router.use(requireAdmin)
+router.use(withRateLimit('admin'))
 const buildWeChatOutTradeNo = (orderId: string) => orderId.replace(/-/g, '').slice(0, 32)
+type QueryFilter = Record<string | symbol, unknown>
+type DateRangeFilter = {[Op.gte]?: Date; [Op.lte]?: Date}
+type SnapshotPayload = Record<string, unknown> | null
+type CountRow = {count?: number | string}
+type InsertResult = {affectedRows?: number}
+type UserCarrier = {user?: {email?: string | null}}
+type ImportConfigRowInput = {key?: unknown; value?: unknown; description?: unknown}
+
+const readErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return ''
+}
+
+const getRelatedUserEmail = (value: unknown) => {
+  const user = (value as UserCarrier | null)?.user
+  return typeof user?.email === 'string' ? user.email : ''
+}
 
 const readIdempotencyToken = (req: Request) => {
   const value = String(
@@ -48,7 +69,7 @@ const readIdempotencyToken = (req: Request) => {
 }
 
 const isLockedError = (error: unknown) => {
-  const message = String((error as any)?.message || '')
+  const message = readErrorMessage(error)
   return message === 'IDEMPOTENCY_LOCKED' || message.startsWith('ORDER_LOCKED:')
 }
 
@@ -77,7 +98,7 @@ router.get('/orders', requirePermission('orders:read'), async (req: Request, res
     const userId = String(req.query.userId || '').trim()
     const paymentMethod = String(req.query.paymentMethod || '').trim()
 
-    const where: any = {}
+    const where: QueryFilter = {}
     if (status) where.status = status
     if (planKey) where.planKey = planKey
     if (userId) where.userId = userId
@@ -128,10 +149,10 @@ const appendOrderAudit = async (payload: {
   orderId: string
   actorUserId?: string | null
   action: string
-  beforeSnapshot?: any
-  afterSnapshot?: any
+  beforeSnapshot?: SnapshotPayload
+  afterSnapshot?: SnapshotPayload
   note?: string
-  transaction?: any
+  transaction?: Transaction
 }) => {
   await OrderAuditLog.create({
     orderId: payload.orderId,
@@ -150,7 +171,7 @@ router.get('/orders/audits', requirePermission('audit:read'), async (req: Reques
     const limit = Math.min(200, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50))
     const offset = (page - 1) * limit
 
-    const where: any = {}
+    const where: QueryFilter = {}
     if (orderId) where.orderId = orderId
 
     const {rows, count} = await OrderAuditLog.findAndCountAll({
@@ -240,7 +261,7 @@ router.post('/orders/:id/repair', requirePermission('orders:operate'), async (re
 
     res.json({...result.data, replayed: result.replayed})
   } catch (error) {
-    if (String((error as any)?.message || '') === 'ORDER_NOT_FOUND') {
+    if (readErrorMessage(error) === 'ORDER_NOT_FOUND') {
       return sendError(res, {
         status: 404,
         code: 'ORDER_NOT_FOUND',
@@ -303,7 +324,7 @@ router.post('/orders/:id/manual-complete', requirePermission('orders:operate'), 
 
     res.json({...result.data, replayed: result.replayed})
   } catch (error) {
-    if (String((error as any)?.message || '') === 'ORDER_NOT_FOUND') {
+    if (readErrorMessage(error) === 'ORDER_NOT_FOUND') {
       return sendError(res, {
         status: 404,
         code: 'ORDER_NOT_FOUND',
@@ -412,7 +433,7 @@ router.post('/orders/:id/manual-refund', requirePermission('orders:operate'), as
             }
 
             order.status = 'refunded'
-            order.refundedAmount = effectiveRefundAmount
+            order.refundedAmount = effectiveRefundAmount.toFixed(2)
             order.refundedAt = new Date()
             await order.save({transaction})
             const after = buildOrderSnapshot(order)
@@ -435,8 +456,8 @@ router.post('/orders/:id/manual-refund', requirePermission('orders:operate'), as
     )
 
     res.json({...result.data, replayed: result.replayed})
-  } catch (error: any) {
-    const message = String(error?.message || '')
+  } catch (error: unknown) {
+    const message = readErrorMessage(error)
     if (message === 'ORDER_NOT_FOUND') {
       return sendError(res, {
         status: 404,
@@ -469,7 +490,7 @@ router.post('/orders/:id/manual-refund', requirePermission('orders:operate'), as
         retryable: false,
       })
     }
-    if (String(error?.message || '').includes('Insufficient balance')) {
+    if (message.includes('Insufficient balance')) {
       return sendError(res, {
         status: 400,
         code: 'REFUND_INSUFFICIENT_BALANCE',
@@ -517,7 +538,7 @@ router.get('/config/keys', requirePermission('settings:manage'), async (req: Req
       }
     })
 
-    // Also include any other keys in DB that might not match current models (optional)
+    // Also include extra DB keys that might not match current models (optional)
 
     res.json(result)
   } catch (error) {
@@ -680,12 +701,12 @@ router.post('/config/general/wechat-pay/test', requirePermission('settings:manag
     })
 
     res.json(result)
-  } catch (error: any) {
+  } catch (error: unknown) {
     captureError(error, {scope: 'admin.settings.wechat_pay_test'})
     sendError(res, {
       status: 400,
       code: 'WECHAT_PAY_TEST_FAILED',
-      message: String(error?.message || '微信支付配置测试失败'),
+      message: readErrorMessage(error) || '微信支付配置测试失败',
       retryable: false,
     })
   }
@@ -786,14 +807,15 @@ router.post('/config/import', requirePermission('settings:manage'), async (req: 
       return res.status(400).json({error: 'Config rows are required'})
     }
 
-    const normalizedRows = rows.map((row: any) => {
-      if (!row || typeof row.key !== 'string' || !row.key.trim()) {
+    const normalizedRows = rows.map((row: unknown) => {
+      const normalized = row as ImportConfigRowInput | null
+      if (!normalized || typeof normalized.key !== 'string' || !normalized.key.trim()) {
         throw new Error('Invalid config row')
       }
       return {
-        key: row.key.trim(),
-        value: row.value === null || row.value === undefined ? null : String(row.value),
-        description: row.description === null || row.description === undefined ? null : String(row.description),
+        key: normalized.key.trim(),
+        value: normalized.value === null || normalized.value === undefined ? null : String(normalized.value),
+        description: normalized.description === null || normalized.description === undefined ? null : String(normalized.description),
       }
     })
 
@@ -872,7 +894,9 @@ router.get('/analysis/stats', requirePermission('analysis:read'), async (req: Re
 
 router.get('/analysis/portraits', requirePermission('analysis:read'), async (req: Request, res: Response) => {
   try {
-    const portraits = await getUserPortraits()
+    const page = Number.parseInt(String(req.query.page || '1'), 10) || 1
+    const pageSize = Number.parseInt(String(req.query.pageSize || '50'), 10) || 50
+    const portraits = await getUserPortraits(page, pageSize)
     res.json(portraits)
   } catch (error) {
     console.error('User portraits error:', error)
@@ -922,26 +946,19 @@ router.get('/analysis/economics', requirePermission('analysis:read'), async (req
   }
 })
 
-const escapeCsv = (value: unknown) => {
-  const str = String(value ?? '')
-  if (str.includes(',') || str.includes('\n') || str.includes('"')) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
-
 router.get('/export/orders.csv', requirePermission('export:read'), async (req: Request, res: Response) => {
   try {
     const status = String(req.query.status || '').trim()
     const start = String(req.query.start || '').trim()
     const end = String(req.query.end || '').trim()
 
-    const where: any = {}
+    const where: QueryFilter = {}
     if (status) where.status = status
     if (start || end) {
-      where.createdAt = {}
-      if (start) where.createdAt[Op.gte] = new Date(`${start}T00:00:00`)
-      if (end) where.createdAt[Op.lte] = new Date(`${end}T23:59:59`)
+      const createdAt: DateRangeFilter = {}
+      if (start) createdAt[Op.gte] = new Date(`${start}T00:00:00`)
+      if (end) createdAt[Op.lte] = new Date(`${end}T23:59:59`)
+      where.createdAt = createdAt
     }
 
     const rows = await Order.findAll({
@@ -965,26 +982,22 @@ router.get('/export/orders.csv', requirePermission('export:read'), async (req: R
       'refundedAt',
       'createdAt',
     ]
-    const lines = rows.map((order) =>
-      [
-        order.id,
-        order.userId,
-        (order as any).user?.email || '',
-        order.plan,
-        order.planKey || '',
-        order.amount,
-        order.status,
-        order.paymentMethod,
-        order.transactionId || '',
-        order.refundedAmount || '',
-        order.refundedAt || '',
-        order.createdAt,
-      ]
-        .map(escapeCsv)
-        .join(','),
-    )
+    const lines = rows.map((order) => [
+      order.id,
+      order.userId,
+      getRelatedUserEmail(order),
+      order.plan,
+      order.planKey || '',
+      order.amount,
+      order.status,
+      order.paymentMethod,
+      order.transactionId || '',
+      order.refundedAmount || '',
+      order.refundedAt || '',
+      order.createdAt,
+    ])
 
-    const csv = [header.join(','), ...lines].join('\n')
+    const csv = buildCsv([header, ...lines])
     res.header('Content-Type', 'text/csv')
     res.attachment('orders_export.csv')
     res.send(csv)
@@ -1001,13 +1014,14 @@ router.get('/export/tokens.csv', requirePermission('export:read'), async (req: R
     const start = String(req.query.start || '').trim()
     const end = String(req.query.end || '').trim()
 
-    const where: any = {}
+    const where: QueryFilter = {}
     if (type) where.type = type
     if (model) where.model = model
     if (start || end) {
-      where.createdAt = {}
-      if (start) where.createdAt[Op.gte] = new Date(`${start}T00:00:00`)
-      if (end) where.createdAt[Op.lte] = new Date(`${end}T23:59:59`)
+      const createdAt: DateRangeFilter = {}
+      if (start) createdAt[Op.gte] = new Date(`${start}T00:00:00`)
+      if (end) createdAt[Op.lte] = new Date(`${end}T23:59:59`)
+      where.createdAt = createdAt
     }
 
     const rows = await TokenUsageRecord.findAll({
@@ -1018,22 +1032,18 @@ router.get('/export/tokens.csv', requirePermission('export:read'), async (req: R
     })
 
     const header = ['recordId', 'userId', 'userEmail', 'type', 'model', 'amount', 'balanceAfter', 'createdAt']
-    const lines = rows.map((record) =>
-      [
-        record.id,
-        record.userId,
-        (record as any).user?.email || '',
-        record.type,
-        record.model || '',
-        record.amount,
-        record.balanceAfter,
-        record.createdAt,
-      ]
-        .map(escapeCsv)
-        .join(','),
-    )
+    const lines = rows.map((record) => [
+      record.id,
+      record.userId,
+      getRelatedUserEmail(record),
+      record.type,
+      record.model || '',
+      record.amount,
+      record.balanceAfter,
+      record.createdAt,
+    ])
 
-    const csv = [header.join(','), ...lines].join('\n')
+    const csv = buildCsv([header, ...lines])
     res.header('Content-Type', 'text/csv')
     res.attachment('token_usage_export.csv')
     res.send(csv)
@@ -1056,7 +1066,8 @@ router.post('/data/archive', requirePermission('archive:execute'), async (req: R
       const [rows] = await sequelize.query(`SELECT COUNT(*) AS count FROM \`${table}\` WHERE \`createdAt\` < ?`, {
         replacements: [cutoffSql],
       })
-      counts[table] = Number((rows as any[])[0]?.count || 0)
+      const countRows = Array.isArray(rows) ? (rows as CountRow[]) : []
+      counts[table] = Number(countRows[0]?.count || 0)
     }
 
     if (dryRun) {
@@ -1074,7 +1085,7 @@ router.post('/data/archive', requirePermission('archive:execute'), async (req: R
         `INSERT INTO \`${table}_archive\` SELECT * FROM \`${table}\` WHERE \`createdAt\` < ?`,
         {replacements: [cutoffSql]},
       )
-      const inserted = Number((insertResult as any)?.affectedRows || 0)
+      const inserted = Number((insertResult as InsertResult | null)?.affectedRows || 0)
       moved[table] = inserted
 
       if (inserted > 0) {
