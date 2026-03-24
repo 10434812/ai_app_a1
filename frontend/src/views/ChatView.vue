@@ -9,8 +9,12 @@ import {useAuthStore} from '../stores/auth'
 import {useAppStore} from '../stores/app'
 import {renderMarkdown} from '../utils/markdown'
 import {getModelLogoCandidates} from '../utils/modelLogo'
+import {buildModelSelectionSummary} from '../utils/modelSelectionSummary'
+import {EMPTY_STATE_PROMO, EMPTY_STATE_PROMO_CONTAINER_CLASS, EMPTY_STATE_PROMO_SCROLL_CLASS, shouldShowEmptyStatePromo} from '../utils/emptyStatePromo'
+import {withBearerAuth} from '../utils/authToken'
 import {useWeChatShare} from '../composables/useWeChatShare'
 import {extractApiErrorMessage} from '../utils/apiError'
+import {foldRealtimeTurnResults, isRealtimeTurnResult} from '../utils/realtimeResultMode'
 import PromptMarketModal from '../components/PromptMarketModal.vue'
 import Sidebar from '../components/Sidebar.vue'
 import UserProfileModal from '../components/UserProfileModal.vue'
@@ -272,9 +276,9 @@ const showWeChatShareGuide = ref(false)
 const showRegisterModal = ref(false)
 const showPromptMarket = ref(false)
 const showUpgradeLimitModal = ref(false)
-const wechatShareTitleDefault = ref('AI 智能助手')
-const wechatShareDescDefault = ref('汇聚全球顶尖大模型，为您提供智能问答服务')
-const wechatShareImgDefault = ref(`${window.location.origin}/logo.png`)
+const wechatShareTitleDefault = ref('全智AI')
+const wechatShareDescDefault = ref('一次访问，多种结果')
+const wechatShareImgDefault = ref(`${window.location.origin}/logo.svg`)
 const wechatShareLinkDefault = ref(window.location.href.split('#')[0])
 
 const guestMsgCount = ref(0)
@@ -489,6 +493,15 @@ interface ModelRouteMeta {
   statusText: string
 }
 
+interface RealtimeResultMeta {
+  kind: string
+  target: string
+  displayName: string
+  title: string
+  sourceLabel: string
+  timestampLabel: string
+}
+
 interface ModelResult {
   id: string
   name: string
@@ -498,6 +511,8 @@ interface ModelResult {
   streaming: boolean
   toolOutputs: ToolOutput[]
   routeMeta?: ModelRouteMeta | null
+  responseMode?: string | null
+  realtimeMeta?: RealtimeResultMeta | null
 }
 
 interface ConversationTurn {
@@ -543,6 +558,8 @@ function collapseModelPanelOnAnswerGesture() {
 
 const models = AVAILABLE_MODELS
 const selectedModels = computed(() => appStore.selectedModelIds)
+const headerModelSelectionSummary = computed(() => buildModelSelectionSummary(selectedModels.value, 3))
+const showEmptyStatePromo = computed(() => shouldShowEmptyStatePromo(turns.value.length, question.value))
 const logoFailureIndex = ref<Record<string, number>>({})
 
 function isConfiguredModel(id: string) {
@@ -633,12 +650,9 @@ async function runImageGeneration(modelId: string, prompt: string): Promise<stri
 async function persistAssistantMessage(conversationId: string | null, modelId: string, content: string): Promise<void> {
   if (!conversationId || !content.trim()) return
 
-  const headers: Record<string, string> = {
+  const headers = withBearerAuth({
     'Content-Type': 'application/json',
-  }
-  if (authStore.token) {
-    headers.Authorization = `Bearer ${authStore.token}`
-  }
+  }, authStore.token)
 
   const response = await fetch(`${API_BASE_URL}/api/chat/message`, {
     method: 'POST',
@@ -852,11 +866,13 @@ function onModelPanelScroll() {
 }
 
 function getModelName(id: string): string {
+  if (id === 'realtime-quote') return '实时行情'
   const model = models.find((m) => m.id === id)
   return model ? model.name : id
 }
 
 function getModelTooltip(id: string): string {
+  if (id === 'realtime-quote') return '系统实时行情结果'
   const model = models.find((m) => m.id === id)
   if (disabledModelIds.value.includes(id)) {
     return `${model?.description || model?.name || id}（已被管理员禁用）`
@@ -867,6 +883,7 @@ function getModelTooltip(id: string): string {
 }
 
 function getModelPublicStatus(id: string): PublicModelStatus | null {
+  if (id === 'realtime-quote') return null
   return publicModelStatusMap.value[id] || null
 }
 
@@ -880,10 +897,12 @@ function getModelStatusBadgeClass(id: string) {
 }
 
 function getModelStatusLabel(id: string) {
+  if (id === 'realtime-quote') return '实时'
   return getModelPublicStatus(id)?.statusText || '待接入'
 }
 
 function getModelStatusHint(id: string) {
+  if (id === 'realtime-quote') return '系统实时行情卡片'
   const status = getModelPublicStatus(id)
   if (!status) return '当前模型状态未知'
   if (status.status === 'disabled') return '已被管理员禁用'
@@ -901,6 +920,9 @@ function getModelStatusHint(id: string) {
 }
 
 function getResultRouteSubtitle(result: ModelResult) {
+  if (result.realtimeMeta) {
+    return `${result.realtimeMeta.sourceLabel} · ${result.realtimeMeta.timestampLabel}`
+  }
   const route = result.routeMeta
   if (route?.upstreamModelId) {
     return `${route.provider} · ${route.upstreamModelId}`
@@ -912,6 +934,24 @@ function getResultRouteSubtitle(result: ModelResult) {
   }
 
   return getModelStatusHint(result.id)
+}
+
+function getDisplayTurnResults(turn: ConversationTurn) {
+  return foldRealtimeTurnResults(turn.results)
+}
+
+function isRealtimeTurn(turn: ConversationTurn) {
+  return getDisplayTurnResults(turn).some((result) => isRealtimeTurnResult(result))
+}
+
+function getDisplayResultName(result: ModelResult) {
+  if (result.realtimeMeta || result.id === 'realtime-quote') return '实时行情'
+  return result.name
+}
+
+function getDisplayResultLogo(result: ModelResult) {
+  if (result.realtimeMeta || result.id === 'realtime-quote') return ''
+  return getModelLogo(result.id)
 }
 
 function isErrorResultContent(content: string) {
@@ -926,6 +966,7 @@ function getLatencySeconds(latency: string) {
 
 function getResultScore(result: ModelResult) {
   if (result.streaming) return -1000
+  if (result.responseMode === 'realtime_quote') return 10000
   if (isImageModelId(result.id)) return -200
 
   let score = 0
@@ -956,12 +997,14 @@ function getResultScore(result: ModelResult) {
 }
 
 function getRecommendedResultId(turn: ConversationTurn) {
-  if (turn.pinnedResultId && turn.results.some((item) => item.id === turn.pinnedResultId)) {
+  const displayResults = getDisplayTurnResults(turn)
+
+  if (turn.pinnedResultId && displayResults.some((item) => item.id === turn.pinnedResultId)) {
     return turn.pinnedResultId
   }
 
-  const candidates = turn.results.filter((result) => !isImageModelId(result.id))
-  if (!candidates.length) return turn.results[0]?.id || null
+  const candidates = displayResults.filter((result) => !isImageModelId(result.id))
+  if (!candidates.length) return displayResults[0]?.id || null
 
   return [...candidates]
     .sort((a, b) => getResultScore(b) - getResultScore(a))
@@ -969,8 +1012,9 @@ function getRecommendedResultId(turn: ConversationTurn) {
 }
 
 function getSortedTurnResults(turn: ConversationTurn) {
+  const displayResults = getDisplayTurnResults(turn)
   const recommendedId = getRecommendedResultId(turn)
-  return [...turn.results].sort((a, b) => {
+  return [...displayResults].sort((a, b) => {
     const aRecommended = a.id === recommendedId ? 1 : 0
     const bRecommended = b.id === recommendedId ? 1 : 0
     if (aRecommended !== bRecommended) return bRecommended - aRecommended
@@ -990,7 +1034,7 @@ function getSortedTurnResults(turn: ConversationTurn) {
 
 function getRecommendedResult(turn: ConversationTurn) {
   const recommendedId = getRecommendedResultId(turn)
-  return turn.results.find((result) => result.id === recommendedId) || null
+  return getDisplayTurnResults(turn).find((result) => result.id === recommendedId) || null
 }
 
 function isRecommendedResult(turn: ConversationTurn, resultId: string) {
@@ -999,13 +1043,14 @@ function isRecommendedResult(turn: ConversationTurn, resultId: string) {
 
 function setPinnedResult(turn: ConversationTurn, resultId: string) {
   turn.pinnedResultId = resultId
-  const result = turn.results.find((item) => item.id === resultId)
+  const result = getDisplayTurnResults(turn).find((item) => item.id === resultId)
   if (result) {
-    showInputNotice(`已将 ${result.name} 设为主回答`, 'success')
+    showInputNotice(`已将 ${getDisplayResultName(result)} 设为主回答`, 'success')
   }
 }
 
 function getModelLogoCandidateList(id: string): string[] {
+  if (id === 'realtime-quote') return []
   const model = models.find((m) => m.id === id) as {id: string; website?: string; logo?: string} | undefined
   return getModelLogoCandidates(model)
 }
@@ -1018,11 +1063,13 @@ function getModelLogo(id: string): string {
 }
 
 function getModelWebsite(id: string): string {
+  if (id === 'realtime-quote') return '#'
   const model = models.find((m) => m.id === id) as {website?: string} | undefined
   return model?.website || '#'
 }
 
 function markLogoFailed(id: string) {
+  if (id === 'realtime-quote') return
   const candidates = getModelLogoCandidateList(id)
   const current = logoFailureIndex.value[id] || 0
   if (!candidates.length || current >= candidates.length) return
@@ -1342,12 +1389,9 @@ async function regenerateResponse(turnIndex: number, modelId: string) {
       return
     }
 
-    const headers: Record<string, string> = {
+    const headers = withBearerAuth({
       'Content-Type': 'application/json',
-    }
-    if (authStore.token) {
-      headers.Authorization = `Bearer ${authStore.token}`
-    }
+    }, authStore.token)
 
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: 'POST',
@@ -1397,6 +1441,12 @@ async function regenerateResponse(turnIndex: number, modelId: string) {
           const data = JSON.parse(dataStr)
           if (data.meta?.route) {
             result.routeMeta = data.meta.route
+          }
+          if (data.meta?.mode) {
+            result.responseMode = data.meta.mode
+          }
+          if (data.meta?.realtime) {
+            result.realtimeMeta = data.meta.realtime
           }
           if (data.error) {
             result.content += `\n[Error: ${extractApiErrorMessage(data, '请求失败')}]`
@@ -1539,15 +1589,27 @@ async function loadConversation(id: string) {
           pinnedResultId: null,
         }
       } else if (msg.role === 'assistant' && currentTurn) {
+        const isRealtimeQuote = msg.model === 'realtime-quote'
         currentTurn.results.push({
           id: msg.model || 'unknown',
-          name: getModelName(msg.model || 'unknown'),
+          name: isRealtimeQuote ? '实时行情' : getModelName(msg.model || 'unknown'),
           latency: '',
           color: getRandomColor(),
           content: msg.content,
           streaming: false,
           toolOutputs: [],
           routeMeta: null,
+          responseMode: isRealtimeQuote ? 'realtime_quote' : null,
+          realtimeMeta: isRealtimeQuote
+            ? {
+                kind: 'unknown',
+                target: 'realtime-quote',
+                displayName: '实时行情',
+                title: '实时行情',
+                sourceLabel: '系统',
+                timestampLabel: '',
+              }
+            : null,
         })
       }
     }
@@ -1651,12 +1713,9 @@ async function handleGenerate() {
   // Initialize Conversation (Create or Append User Message)
   let activeConversationId = conversationId.value
   try {
-    const saveMsgHeaders: Record<string, string> = {
+    const saveMsgHeaders = withBearerAuth({
       'Content-Type': 'application/json',
-    }
-    if (authStore.token) {
-      saveMsgHeaders.Authorization = `Bearer ${authStore.token}`
-    }
+    }, authStore.token)
 
     const saveMsgRes = await fetch(`${API_BASE_URL}/api/chat/message`, {
       method: 'POST',
@@ -1700,6 +1759,8 @@ async function handleGenerate() {
       streaming: true,
       toolOutputs: [],
       routeMeta: null,
+      responseMode: null,
+      realtimeMeta: null,
     })),
     timestamp: Date.now(),
     pinnedResultId: null,
@@ -1741,12 +1802,9 @@ async function handleGenerate() {
         return
       }
 
-      const headers: Record<string, string> = {
+      const headers = withBearerAuth({
         'Content-Type': 'application/json',
-      }
-      if (authStore.token) {
-        headers.Authorization = `Bearer ${authStore.token}`
-      }
+      }, authStore.token)
 
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
@@ -1810,6 +1868,12 @@ async function handleGenerate() {
             }
             if (data.meta?.route) {
               res.routeMeta = data.meta.route
+            }
+            if (data.meta?.mode) {
+              res.responseMode = data.meta.mode
+            }
+            if (data.meta?.realtime) {
+              res.realtimeMeta = data.meta.realtime
             }
 
             if (data.error) {
@@ -1891,12 +1955,9 @@ async function handleToolAction(turnIndex: number, resultId: string, type: strin
 
   const prompt = getToolPrompt(type, result.content)
   const startTime = Date.now()
-  const headers: Record<string, string> = {
+  const headers = withBearerAuth({
     'Content-Type': 'application/json',
-  }
-  if (authStore.token) {
-    headers.Authorization = `Bearer ${authStore.token}`
-  }
+  }, authStore.token)
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
@@ -1999,14 +2060,22 @@ function handleUpgrade() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div class="flex flex-col min-w-0">
-            <h1 class="text-base sm:text-xl font-bold text-slate-800 dark:text-white tracking-tight flex items-center gap-1.5 sm:gap-2">
-              <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 whitespace-nowrap">AI 聚合问答</span>
-              <span
-                class="px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 text-[9px] sm:text-[10px] text-indigo-500 dark:text-indigo-400 font-sans font-bold uppercase tracking-wider backdrop-blur-sm shadow-sm flex-none scale-90 sm:scale-100 origin-left"
-                >Beta</span
-              >
-            </h1>
+          <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <img
+              src="/logo.svg"
+              alt="全智AI"
+              class="h-10 w-10 sm:h-11 sm:w-11 shrink-0"
+            />
+            <div class="flex flex-col min-w-0">
+              <h1 class="text-base sm:text-xl font-bold text-slate-800 dark:text-white tracking-tight leading-none">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-violet-600 to-blue-500 dark:from-indigo-400 dark:via-violet-400 dark:to-blue-300 whitespace-nowrap">
+                  全智AI
+                </span>
+              </h1>
+              <p class="mt-1 pl-0.5 text-[10px] sm:text-[11px] font-medium tracking-[0.08em] text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                一次访问，多种结果
+              </p>
+            </div>
           </div>
         </div>
 
@@ -2021,6 +2090,28 @@ function handleUpgrade() {
 
           <!-- Share Link -->
           <div class="flex items-center gap-2">
+            <div v-if="headerModelSelectionSummary.visibleIds.length > 0" class="flex items-center gap-1.5 shrink-0">
+              <div
+                v-for="id in headerModelSelectionSummary.visibleIds"
+                :key="`header-selected-${id}`"
+                class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/85 dark:bg-slate-800/85 border border-slate-200/80 dark:border-slate-700 shadow-sm flex items-center justify-center overflow-hidden"
+                :title="getModelName(id)">
+                <img
+                  v-if="getModelLogo(id)"
+                  :src="getModelLogo(id)"
+                  @error="markLogoFailed(id)"
+                  class="w-full h-full object-cover"
+                  :alt="getModelName(id)" />
+                <div v-else class="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-300">
+                  {{ getModelName(id).substring(0, 1) }}
+                </div>
+              </div>
+              <div
+                v-if="headerModelSelectionSummary.hiddenCount > 0"
+                class="min-w-[1.75rem] h-7 sm:min-w-[2rem] sm:h-8 px-2 rounded-full bg-slate-100/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-300 flex items-center justify-center shadow-sm">
+                +{{ headerModelSelectionSummary.hiddenCount }}
+              </div>
+            </div>
             <button
               @click="handleShareClick"
               :class="[
@@ -2049,14 +2140,54 @@ function handleUpgrade() {
         @scroll="onScroll"
         @wheel.passive="collapseModelPanelOnAnswerGesture"
         @touchmove.passive="collapseModelPanelOnAnswerGesture"
-        class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-8 scroll-smooth custom-scrollbar relative z-10">
-        <div v-if="turns.length === 0" class="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 opacity-60">
-          <div class="w-24 h-24 bg-gradient-to-br from-slate-100 to-white dark:from-slate-800 dark:to-slate-700 rounded-full flex items-center justify-center shadow-inner mb-6">
-            <svg class="w-10 h-10 text-slate-300 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </div>
-          <p class="text-lg font-medium text-slate-500 dark:text-slate-400">有什么可以帮您？</p>
+        :class="[
+          'flex-1 overflow-y-auto scroll-smooth custom-scrollbar relative z-10',
+          showEmptyStatePromo ? EMPTY_STATE_PROMO_SCROLL_CLASS : 'p-4 sm:p-6 space-y-8',
+        ]">
+        <div v-if="showEmptyStatePromo" :class="EMPTY_STATE_PROMO_CONTAINER_CLASS">
+          <a
+            :href="EMPTY_STATE_PROMO.href"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group relative w-full min-h-[300px] sm:min-h-[380px] overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(241,245,255,0.98)_42%,rgba(224,242,254,0.9)_100%)] px-6 py-7 sm:px-10 sm:py-9 text-left shadow-[0_20px_60px_-40px_rgba(59,130,246,0.35)] transition-all duration-300 hover:shadow-[0_28px_80px_-44px_rgba(79,70,229,0.42)]">
+            <div class="absolute inset-y-0 right-0 w-[42%] bg-[linear-gradient(180deg,rgba(99,102,241,0.12),rgba(59,130,246,0.08),transparent)]"></div>
+            <div class="absolute -right-10 top-10 h-40 w-40 rounded-full bg-indigo-200/30 blur-3xl"></div>
+            <div class="absolute right-12 bottom-10 h-24 w-24 rounded-full border border-white/40 bg-white/10 backdrop-blur-sm"></div>
+            <div class="relative flex h-full flex-col justify-between gap-6">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-rose-500 shadow-sm">
+                    {{ EMPTY_STATE_PROMO.eyebrow }}
+                  </span>
+                  <span class="hidden sm:inline text-[11px] font-medium tracking-[0.08em] text-slate-400">
+                    Sponsored
+                  </span>
+                </div>
+                <h2 class="mt-5 text-[30px] sm:text-[40px] leading-none font-black tracking-tight text-slate-900">
+                  {{ EMPTY_STATE_PROMO.title }}
+                </h2>
+                <p class="mt-3 text-base sm:text-[22px] font-semibold text-indigo-600">
+                  {{ EMPTY_STATE_PROMO.subtitle }}
+                </p>
+                <p class="mt-4 max-w-2xl text-sm sm:text-base leading-7 text-slate-600">
+                  {{ EMPTY_STATE_PROMO.description }}
+                </p>
+              </div>
+            </div>
+
+            <div class="relative mt-auto flex items-center justify-between gap-3 border-t border-white/70 pt-5">
+              <span class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <span class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(74,222,128,0.15)]"></span>
+                真人解答入口
+              </span>
+              <span class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-300 group-hover:bg-indigo-600">
+                {{ EMPTY_STATE_PROMO.cta }}
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
+            </div>
+          </a>
         </div>
 
         <div v-for="(turn, tIndex) in turns" :key="tIndex" class="space-y-6 animate-fade-in-up">
@@ -2068,7 +2199,7 @@ function handleUpgrade() {
           </div>
 
           <div
-            v-if="turn.results.length > 1 && getRecommendedResult(turn)"
+            v-if="getDisplayTurnResults(turn).length > 1 && getRecommendedResult(turn)"
             class="flex items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-sky-50 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-indigo-900/50 dark:from-indigo-950/60 dark:via-slate-900 dark:to-slate-900 dark:text-slate-300">
             <div class="flex items-center gap-3 min-w-0">
               <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-white shadow-sm">
@@ -2103,24 +2234,24 @@ function handleUpgrade() {
               <div class="px-5 py-4 border-b border-indigo-50/50 dark:border-slate-700/50 bg-gradient-to-r from-white/40 to-transparent dark:from-slate-700/20 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg bg-white dark:bg-slate-700 shadow-sm p-1 flex items-center justify-center border border-indigo-50/50 dark:border-slate-600">
-                    <img :src="getModelLogo(res.id)" @error="markLogoFailed(res.id)" class="w-full h-full object-contain rounded" v-if="getModelLogo(res.id)" />
-                    <div v-else class="text-xs font-bold text-slate-400">{{ res.name.substring(0, 1) }}</div>
+                    <img :src="getDisplayResultLogo(res)" @error="markLogoFailed(res.id)" class="w-full h-full object-contain rounded" v-if="getDisplayResultLogo(res)" />
+                    <div v-else class="text-xs font-bold text-slate-400">{{ getDisplayResultName(res).substring(0, 1) }}</div>
                   </div>
                   <div>
-                    <div class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{{ res.name }}</div>
+                    <div class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{{ getDisplayResultName(res) }}</div>
                     <div class="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
                       <span v-if="res.latency" class="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400">{{ res.latency }}</span>
                       <span
-                        v-if="isRecommendedResult(turn, res.id)"
+                        v-if="getDisplayTurnResults(turn).length > 1 && isRecommendedResult(turn, res.id)"
                         class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:border-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
                         {{ turn.pinnedResultId === res.id ? '主回答' : '推荐' }}
                       </span>
                       <span
                         :class="[
                           'inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold',
-                          getModelStatusBadgeClass(res.id),
+                          res.responseMode === 'realtime_quote' ? 'border-sky-200 bg-sky-50 text-sky-600' : getModelStatusBadgeClass(res.id),
                         ]">
-                        {{ res.routeMeta?.statusText || getModelStatusLabel(res.id) }}
+                        {{ res.responseMode === 'realtime_quote' ? '实时' : (res.routeMeta?.statusText || getModelStatusLabel(res.id)) }}
                       </span>
                       <span v-if="res.streaming" class="flex items-center gap-1 text-indigo-500 dark:text-indigo-400">
                         <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse"></span>
@@ -2134,7 +2265,7 @@ function handleUpgrade() {
                 </div>
                 <div class="flex items-center gap-1">
                   <button
-                    v-if="turn.results.length > 1 && !isImageModelId(res.id)"
+                    v-if="getDisplayTurnResults(turn).length > 1 && !isImageModelId(res.id) && res.responseMode !== 'realtime_quote'"
                     @click="setPinnedResult(turn, res.id)"
                     :class="[
                       'p-1.5 rounded-lg transition-colors',

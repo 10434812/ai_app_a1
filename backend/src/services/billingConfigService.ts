@@ -74,8 +74,12 @@ const buildDefaultImageRates = (): Record<string, ImageRate> => ({
 })
 
 const getConfigValue = async (key: string) => {
-  const row = await SystemConfig.findByPk(key)
-  return row?.value || ''
+  try {
+    const row = await SystemConfig.findByPk(key)
+    return row?.value || ''
+  } catch {
+    return ''
+  }
 }
 
 const setConfigValue = async (key: string, value: string) => {

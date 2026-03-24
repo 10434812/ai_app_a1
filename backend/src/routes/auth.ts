@@ -124,7 +124,7 @@ router.post('/login', withRateLimit('auth'), async (req: Request, res: Response)
     await clearLoginFailures(email)
 
     const token = jwt.sign({userId: user.id, role: user.role}, JWT_SECRET, {expiresIn: '24h'})
-    issueAuthCookie(res, token)
+    issueAuthCookie(req, res, token)
     res.json(buildAuthPayload(user))
   } catch (error) {
     res.status(500).json({error: 'Login failed'})
@@ -150,7 +150,7 @@ router.post('/register', withRateLimit('auth'), async (req: Request, res: Respon
 
     const user = await createUser(email, password, name)
     const token = jwt.sign({userId: user.id, role: user.role}, JWT_SECRET, {expiresIn: '24h'})
-    issueAuthCookie(res, token)
+    issueAuthCookie(req, res, token)
     res.json(buildAuthPayload(user))
   } catch (error) {
     res.status(500).json({error: 'Registration failed'})
@@ -332,7 +332,7 @@ router.post('/wechat/login', withRateLimit('auth'), async (req: Request, res: Re
     }
 
     const token = jwt.sign({userId: user.id, role: user.role}, JWT_SECRET, {expiresIn: '24h'})
-    issueAuthCookie(res, token)
+    issueAuthCookie(req, res, token)
     res.json(buildAuthPayload(user))
   } catch (error: unknown) {
     console.error('WeChat login error:', error)
@@ -368,7 +368,7 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
     console.log(`[LOGOUT] User: ${userId}, IP: ${ip}, Time: ${new Date().toISOString()}`)
 
-    clearAuthCookie(res)
+    clearAuthCookie(req, res)
     res.json({message: 'Logged out successfully'})
   } catch (error) {
     console.error('Logout error:', error)

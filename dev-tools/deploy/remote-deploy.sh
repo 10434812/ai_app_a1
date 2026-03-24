@@ -87,7 +87,9 @@ cd "$REMOTE_DIR"
 compose pull || true
 compose build
 compose up -d --remove-orphans
-compose exec -T backend npm run migrate
+if ! compose exec -T backend node dist/scripts/migrate.js; then
+  compose exec -T backend npm run migrate
+fi
 
 if [[ -f "$CONFIG_IMPORT_FILE" ]]; then
   compose cp "$CONFIG_IMPORT_FILE" backend:/tmp/ai-app-config.json

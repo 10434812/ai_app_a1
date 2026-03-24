@@ -3,6 +3,7 @@ import {ref, onMounted, computed, watch} from 'vue'
 import {useRouter, useRoute} from 'vue-router'
 import {API_BASE_URL} from '../constants/config'
 import {useAuthStore} from '../stores/auth'
+import {withBearerAuth} from '../utils/authToken'
 import UserDropdown from './UserDropdown.vue'
 
 const props = defineProps<{
@@ -56,16 +57,14 @@ function showSidebarNotice(message: string) {
 }
 
 async function fetchHistory() {
-  if (!authStore.isAuthenticated || !authStore.token) {
+  if (!authStore.isAuthenticated) {
     conversations.value = []
     return
   }
   loading.value = true
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/history`, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
+      headers: withBearerAuth({}, authStore.token),
     })
     if (res.ok) {
       conversations.value = sortConversations(await res.json())
@@ -236,7 +235,7 @@ async function deleteChat(id: string, event: Event) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/${id}`, {
       method: 'DELETE',
-      headers: {Authorization: `Bearer ${authStore.token}`},
+      headers: withBearerAuth({}, authStore.token),
     })
     if (res.ok) {
       conversations.value = conversations.value.filter((c) => c.id !== id)
@@ -257,10 +256,9 @@ async function runBatchDelete() {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/batch-delete`, {
       method: 'POST',
-      headers: {
+      headers: withBearerAuth({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authStore.token}`,
-      },
+      }, authStore.token),
       body: JSON.stringify({conversationIds: selectedConversationIds.value}),
     })
 
@@ -295,10 +293,9 @@ async function saveEdit(conv: Conversation) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/${conv.id}`, {
       method: 'PUT',
-      headers: {
+      headers: withBearerAuth({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authStore.token}`,
-      },
+      }, authStore.token),
       body: JSON.stringify({title: editTitle.value}),
     })
 
@@ -320,10 +317,9 @@ async function toggleFavorite(conv: Conversation, event: Event) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/${conv.id}/favorite`, {
       method: 'PATCH',
-      headers: {
+      headers: withBearerAuth({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authStore.token}`,
-      },
+      }, authStore.token),
       body: JSON.stringify({isFavorite: nextFavorite}),
     })
 
@@ -344,10 +340,9 @@ async function toggleArchive(conv: Conversation, event: Event) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/${conv.id}/archive`, {
       method: 'PATCH',
-      headers: {
+      headers: withBearerAuth({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authStore.token}`,
-      },
+      }, authStore.token),
       body: JSON.stringify({isArchived: nextArchived}),
     })
 
@@ -373,10 +368,9 @@ async function runBatchArchive(isArchived: boolean) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/chat/batch/archive`, {
       method: 'PATCH',
-      headers: {
+      headers: withBearerAuth({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authStore.token}`,
-      },
+      }, authStore.token),
       body: JSON.stringify({
         conversationIds: selectedConversationIds.value,
         isArchived,

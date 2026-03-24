@@ -18,6 +18,22 @@ interface JwtPayload {
 
 export const ADMIN_ROLES = new Set<JwtPayload['role']>(['admin', 'super_admin', 'ops', 'finance', 'support'])
 
+const shouldUseSecureCookie = (req?: Request) => {
+  const override = String(process.env.AUTH_COOKIE_SECURE || '').trim().toLowerCase()
+  if (override === 'true') return true
+  if (override === 'false') return false
+  if (!req) return process.env.NODE_ENV === 'production'
+
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase()
+
+  if (forwardedProto === 'https') return true
+  if (forwardedProto === 'http') return false
+  return req.secure
+}
+
 const getBearerToken = (authHeader?: string) => {
   if (!authHeader) return null
   const parts = authHeader.split(' ')
@@ -43,8 +59,8 @@ const getCookieToken = (cookieHeader?: string) => {
   return null
 }
 
-export const issueAuthCookie = (res: Response, token: string) => {
-  const secure = process.env.NODE_ENV === 'production'
+export const issueAuthCookie = (req: Request, res: Response, token: string) => {
+  const secure = shouldUseSecureCookie(req)
   res.cookie(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -54,8 +70,8 @@ export const issueAuthCookie = (res: Response, token: string) => {
   })
 }
 
-export const clearAuthCookie = (res: Response) => {
-  const secure = process.env.NODE_ENV === 'production'
+export const clearAuthCookie = (req: Request, res: Response) => {
+  const secure = shouldUseSecureCookie(req)
   res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
     sameSite: 'lax',

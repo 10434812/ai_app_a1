@@ -2,6 +2,7 @@ import {defineStore} from 'pinia'
 import {ref, computed} from 'vue'
 import {API_BASE_URL} from '../constants/config'
 import {extractApiErrorMessage} from '../utils/apiError'
+import {normalizeAuthToken} from '../utils/authToken'
 
 export interface User {
   id: string
@@ -25,8 +26,8 @@ export const useAuthStore = defineStore(
 
     const isAuthenticated = computed(() => !!user.value)
 
-    function setAuth(newToken: string, newUser: User) {
-      token.value = newToken || 'cookie'
+    function setAuth(newToken: string | null | undefined, newUser: User) {
+      token.value = normalizeAuthToken(newToken)
       user.value = newUser
     }
 
@@ -45,7 +46,7 @@ export const useAuthStore = defineStore(
         })
         const data = await res.json()
         if (!res.ok) throw new Error(extractApiErrorMessage(data, '微信登录失败'))
-        setAuth('cookie', data.user)
+        setAuth(null, data.user)
         return true
       } catch (e) {
         console.error('WeChat login failed:', e)
@@ -60,7 +61,7 @@ export const useAuthStore = defineStore(
         })
         if (res.ok) {
           const data = await res.json()
-          token.value = 'cookie'
+          token.value = null
           user.value = data.user
         } else {
           if (res.status === 401 || res.status === 403) {

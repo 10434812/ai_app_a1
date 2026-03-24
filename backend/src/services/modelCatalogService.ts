@@ -93,10 +93,17 @@ export const getPublicModelStatusMap = async (): Promise<Record<string, PublicMo
     ]),
   )
 
-  const [rows, statusMap] = await Promise.all([
-    SystemConfig.findAll({where: {key: relevantKeys}}),
-    getModelStatusMap(),
-  ])
+  let rows: Array<SystemConfig> = []
+  let statusMap: Record<string, boolean> = {}
+  try {
+    ;[rows, statusMap] = await Promise.all([
+      SystemConfig.findAll({where: {key: relevantKeys}}),
+      getModelStatusMap(),
+    ])
+  } catch {
+    rows = []
+    statusMap = {}
+  }
 
   const configMap = new Map(rows.map((row) => [row.key, row.value || '']))
   const result: Record<string, PublicModelStatus> = {}
