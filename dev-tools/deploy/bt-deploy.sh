@@ -14,6 +14,8 @@ ALLOW_DIRTY="0"
 SYNC_SCOPE="minimal"
 FORCE_MODE="0"
 SKIP_CONFIG_SYNC="0"
+NODE_BASE_IMAGE="${NODE_BASE_IMAGE:-}"
+NGINX_BASE_IMAGE="${NGINX_BASE_IMAGE:-}"
 
 usage() {
   cat <<USAGE
@@ -36,6 +38,8 @@ usage() {
   --force                       skip branch/dirty checks
   --sync-all                    同步整个仓库（默认仅最小文件集）
   --skip-config-sync            跳过本地配置导出/导入
+  --node-base-image <image>     远端构建使用的 Node 基础镜像（默认读取远端环境/compose 默认值）
+  --nginx-base-image <image>    远端构建使用的 Nginx 基础镜像（默认读取远端环境/compose 默认值）
   -h, --help
 USAGE
 }
@@ -95,6 +99,14 @@ while [[ $# -gt 0 ]]; do
       SKIP_CONFIG_SYNC="1"
       shift
       ;;
+    --node-base-image)
+      NODE_BASE_IMAGE="$2"
+      shift 2
+      ;;
+    --nginx-base-image)
+      NGINX_BASE_IMAGE="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -122,7 +134,9 @@ need_cmd rsync
 need_cmd expect
 need_cmd ssh
 need_cmd scp
-need_cmd docker
+if [[ "$SKIP_CONFIG_SYNC" != "1" ]]; then
+  need_cmd docker
+fi
 
 compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -253,8 +267,41 @@ else
 fi
 
 echo "[发布] 开始远端部署"
+REMOTE_ENV_EXPORTS=""
+if [[ -n "$NODE_BASE_IMAGE" ]]; then
+  REMOTE_ENV_EXPORTS="${REMOTE_ENV_EXPORTS}export NODE_BASE_IMAGE=$(printf '%q' "$NODE_BASE_IMAGE");"
+fi
+if [[ -n "$NGINX_BASE_IMAGE" ]]; then
+  REMOTE_ENV_EXPORTS="${REMOTE_ENV_EXPORTS}export NGINX_BASE_IMAGE=$(printf '%q' "$NGINX_BASE_IMAGE");"
+fi
 REMOTE_CMD_BASE=$(cat <<EOF
 set -Eeuo pipefail
+${REMOTE_ENV_EXPORTS}
+wait_http_ready() {
+  local url="\$1"
+  local label="\${2:-\$1}"
+  local retries="\${3:-40}"
+  local delay="\${4:-3}"
+  local i
+  for ((i=1; i<=retries; i++)); do
+    if curl -fsS "\$url" >/dev/null 2>&1; then
+      echo "[远端] \${label} 就绪"
+      return 0
+    fi
+    sleep "\$delay"
+  done
+  echo "[远端] \${label} 检查超时: \$url" >&2
+  return 1
+}
+check_auth_me_status() {
+  local status
+  status="\$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:4000/api/auth/me')"
+  if [[ "\$status" != '200' && "\$status" != '401' ]]; then
+    echo "/api/auth/me 状态异常: \$status" >&2
+    return 1
+  fi
+  echo "[远端] /api/auth/me 状态正常: \$status"
+}
 echo "[远端] 进入目录 ${REMOTE_DIR}"
 cd '${REMOTE_DIR}'
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -278,13 +325,9 @@ EOF
 
 if [[ "$SKIP_CONFIG_SYNC" == "1" ]]; then
   REMOTE_CMD="${REMOTE_CMD_BASE}
-curl -fsS 'http://127.0.0.1:4000/api/health' >/dev/null
-curl -fsS 'http://127.0.0.1:4000/api/config' >/dev/null
-status=\"\$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:4000/api/auth/me')\"
-if [[ \"\$status\" != '200' && \"\$status\" != '401' ]]; then
-  echo \"/api/auth/me 状态异常: \$status\" >&2
-  exit 1
-fi
+wait_http_ready 'http://127.0.0.1:4000/api/health' '/api/health'
+wait_http_ready 'http://127.0.0.1:4000/api/config' '/api/config'
+check_auth_me_status
 echo '[远端] 健康检查完成'"
 else
   REMOTE_CMD="${REMOTE_CMD_BASE}
@@ -293,13 +336,9 @@ if [[ -f '${REMOTE_TMP_CONFIG_FILE}' ]]; then
   \$compose_cmd exec -T backend npm run config:import -- --input /tmp/ai-app-config.json
 fi
 echo '[远端] 配置导入完成'
-curl -fsS 'http://127.0.0.1:4000/api/health' >/dev/null
-curl -fsS 'http://127.0.0.1:4000/api/config' >/dev/null
-status=\"\$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:4000/api/auth/me')\"
-if [[ \"\$status\" != '200' && \"\$status\" != '401' ]]; then
-  echo \"/api/auth/me 状态异常: \$status\" >&2
-  exit 1
-fi
+wait_http_ready 'http://127.0.0.1:4000/api/health' '/api/health'
+wait_http_ready 'http://127.0.0.1:4000/api/config' '/api/config'
+check_auth_me_status
 echo '[远端] 健康检查完成'"
 fi
 REMOTE_CMD_QUOTED="$(printf '%q' "$REMOTE_CMD")"
