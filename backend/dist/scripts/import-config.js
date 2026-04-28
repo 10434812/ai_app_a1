@@ -1,0 +1,61 @@
+import 'dotenv/config';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { connectDB, sequelize } from "../config/db.js";
+import { upsertSystemConfigs } from "../services/configSyncService.js";
+const parseArgs = (argv) => {
+    const options = {
+        input: './config-export.json',
+        dryRun: false,
+    };
+    for (let index = 0; index < argv.length; index += 1) {
+        const arg = argv[index];
+        if ((arg === '--input' || arg === '-i') && argv[index + 1]) {
+            options.input = argv[index + 1];
+            index += 1;
+            continue;
+        }
+        if (arg === '--dry-run') {
+            options.dryRun = true;
+        }
+    }
+    return options;
+};
+const parsePayload = (raw) => {
+    const payload = JSON.parse(raw);
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.rows)) {
+        throw new Error('Invalid config export file: missing rows array');
+    }
+    return payload.rows.map((row) => {
+        const normalized = row;
+        if (!normalized || typeof normalized.key !== 'string') {
+            throw new Error('Invalid config export file: row.key must be a string');
+        }
+        return {
+            key: normalized.key,
+            value: normalized.value === null || normalized.value === undefined ? null : String(normalized.value),
+            description: normalized.description === null || normalized.description === undefined ? null : String(normalized.description),
+        };
+    });
+};
+const main = async () => {
+    const options = parseArgs(process.argv.slice(2));
+    const inputPath = path.resolve(process.cwd(), options.input);
+    const raw = await fs.readFile(inputPath, 'utf-8');
+    const rows = parsePayload(raw);
+    if (options.dryRun) {
+        console.log(`Dry run: would import ${rows.length} config rows from ${inputPath}`);
+        return;
+    }
+    await connectDB();
+    await upsertSystemConfigs(rows);
+    console.log(`Imported ${rows.length} config rows from ${inputPath}`);
+};
+main()
+    .catch((error) => {
+    console.error('Import config failed:', error);
+    process.exitCode = 1;
+})
+    .finally(async () => {
+    await sequelize.close();
+});

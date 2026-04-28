@@ -1,0 +1,128 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1773296887027,
+  "projectRoot": "/Users/hh/Desktop/ai_app_a1",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "admin": {
+      "path": "admin",
+      "purpose": null,
+      "fileCount": 13,
+      "lastAccessed": 1773296887009,
+      "keyFiles": [
+        "Dockerfile",
+        "index.html",
+        "nginx.conf",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "backend": {
+      "path": "backend",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1773296887009,
+      "keyFiles": [
+        "Dockerfile",
+        "package-lock.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "tsconfig.json"
+      ]
+    },
+    "dev-tools": {
+      "path": "dev-tools",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1773296887010,
+      "keyFiles": []
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 15,
+      "lastAccessed": 1773296887010,
+      "keyFiles": [
+        "Dockerfile",
+        "MP_verify_avZIvGs2Rski5WfJ.txt",
+        "index.html",
+        "nginx.conf",
+        "package-lock.json"
+      ]
+    },
+    "skills": {
+      "path": "skills",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1773296887010,
+      "keyFiles": []
+    },
+    "admin/dist": {
+      "path": "admin/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 2,
+      "lastAccessed": 1773296887011,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "admin/node_modules": {
+      "path": "admin/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 3,
+      "lastAccessed": 1773296887011,
+      "keyFiles": []
+    },
+    "backend/node_modules": {
+      "path": "backend/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 3,
+      "lastAccessed": 1773296887011,
+      "keyFiles": []
+    },
+    "frontend/dist": {
+      "path": "frontend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 2,
+      "lastAccessed": 1773296887012,
+      "keyFiles": [
+        "MP_verify_avZIvGs2Rski5WfJ.txt",
+        "index.html"
+      ]
+    },
+    "frontend/node_modules": {
+      "path": "frontend/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 3,
+      "lastAccessed": 1773296887012,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}
