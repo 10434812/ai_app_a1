@@ -2,12 +2,15 @@ import {BaseLLMProvider} from '../provider.ts'
 import {ChatMessage, ChatStreamResult, LLMUsage} from '../types.ts'
 
 interface OpenAIContentPart {
+  type?: string
   text?: string
+  content?: string
 }
 
 interface OpenAIChoice {
   delta?: {content?: string}
   message?: {content?: string | OpenAIContentPart[]}
+  text?: string
 }
 
 interface OpenAIUsagePayload {
@@ -24,25 +27,53 @@ interface OpenAIResponsePayload {
   data?: {usage?: OpenAIUsagePayload}
   error?: {message?: string}
   message?: string
+  text?: string
+  content?: string | OpenAIContentPart[]
+  output_text?: string | OpenAIContentPart[]
+  outputText?: string | OpenAIContentPart[]
+}
+
+const extractContentFromContentValue = (value: string | OpenAIContentPart[] | null | undefined) => {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    return value
+      .map((part) => {
+        if (typeof part?.text === 'string') return part.text
+        if (typeof part?.content === 'string') return part.content
+        return ''
+      })
+      .join('')
+  }
+  return ''
 }
 
 function extractContentFromChoice(payload: OpenAIResponsePayload | null): string {
   const choice = payload?.choices?.[0]
-  if (!choice) return ''
+  if (choice) {
+    // Streaming delta content
+    if (typeof choice?.delta?.content === 'string') return choice.delta.content
 
-  // Streaming delta content
-  if (typeof choice?.delta?.content === 'string') return choice.delta.content
+    // Some vendors put the visible answer into `text`
+    if (typeof choice?.text === 'string') return choice.text
 
-  // Non-stream completion content
-  if (typeof choice?.message?.content === 'string') return choice.message.content
+    // Non-stream completion content
+    const messageContent = choice?.message?.content
+    const extractedMessageContent = extractContentFromContentValue(messageContent)
+    if (extractedMessageContent) return extractedMessageContent
 
-  // Some providers return content blocks array
-  const messageContent = choice?.message?.content
-  if (Array.isArray(messageContent)) {
-    return messageContent
-      .map((part) => (typeof part?.text === 'string' ? part.text : ''))
-      .join('')
+    // Last-resort compatibility: some providers return the visible text under `delta.text`
+    const delta = choice?.delta as {content?: string; text?: string; output_text?: string; reasoning_content?: string} | undefined
+    if (typeof delta?.text === 'string') return delta.text
   }
+
+  // Top-level fallback formats used by some compatible gateways
+  const topLevelContent =
+    extractContentFromContentValue(payload?.content) ||
+    extractContentFromContentValue(payload?.output_text) ||
+    extractContentFromContentValue(payload?.outputText)
+  if (topLevelContent) return topLevelContent
+
+  if (typeof payload?.text === 'string') return payload.text
 
   return ''
 }
@@ -154,7 +185,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               onData(content)
             }
           } catch (e) {
-            console.error('Error parsing SSE chunk:', e)
+            if (raw && raw !== '[DONE]') {
+              emittedChunks++
+              onData(raw)
+            } else {
+              console.error('Error parsing SSE chunk:', e)
+            }
           }
         }
       }
@@ -166,12 +202,17 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       try {
         const raw = buffer.trim().replace(/^data:\s?/, '')
         if (raw && raw !== '[DONE]') {
-          const data = JSON.parse(raw) as OpenAIResponsePayload
-          streamUsage = parseUsage(data) || streamUsage
-          const content = extractContentFromChoice(data)
-          if (content) {
+          try {
+            const data = JSON.parse(raw) as OpenAIResponsePayload
+            streamUsage = parseUsage(data) || streamUsage
+            const content = extractContentFromChoice(data)
+            if (content) {
+              emittedChunks++
+              onData(content)
+            }
+          } catch {
             emittedChunks++
-            onData(content)
+            onData(raw)
           }
         }
       } catch {}

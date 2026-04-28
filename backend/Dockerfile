@@ -1,4 +1,6 @@
-FROM node:20-alpine AS builder
+ARG NODE_BASE_IMAGE=node:20-alpine
+
+FROM ${NODE_BASE_IMAGE} AS builder
 
 WORKDIR /app
 COPY package*.json ./
@@ -6,7 +8,7 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM ${NODE_BASE_IMAGE} AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production

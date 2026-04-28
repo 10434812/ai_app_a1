@@ -5,7 +5,7 @@ HOST=""
 PORT="22"
 USER="root"
 PASSWORD="${BT_SSH_PASSWORD:-}"
-REMOTE_DIR="/home/www/docker/ai_app"
+REMOTE_DIR="/www/www/docker/home/ai_app"
 BRANCH="main"
 PROJECT_NAME="ai_app"
 WITH_BUILD="0"
@@ -29,7 +29,7 @@ usage() {
   --port <port>                 default: 22
   --user <user>                 default: root
   --password <password>         default: env BT_SSH_PASSWORD; fallback prompt
-  --remote-dir <dir>            default: /home/www/docker/ai_app
+  --remote-dir <dir>            default: /www/www/docker/home/ai_app
   --branch <name>               default: main
   --project <name>              default: ai_app
   --with-build                  run backend/frontend/admin build precheck
@@ -258,7 +258,7 @@ if [[ "$SKIP_CONFIG_SYNC" == "1" ]]; then
   echo "[发布] 已跳过配置同步"
 else
   echo "[发布] 导出本地系统配置"
-  compose exec -T backend npm run config:export -- --output /tmp/ai-app-config.json
+  compose exec -T backend node dist/scripts/export-config.js --output /tmp/ai-app-config.json
   compose cp backend:/tmp/ai-app-config.json "$LOCAL_CONFIG_FILE"
 
   echo "[发布] 上传配置文件"
@@ -277,6 +277,20 @@ fi
 REMOTE_CMD_BASE=$(cat <<EOF
 set -Eeuo pipefail
 ${REMOTE_ENV_EXPORTS}
+wait_mysql_ready() {
+  local retries="\${1:-40}"
+  local delay="\${2:-3}"
+  local i
+  for ((i=1; i<=retries; i++)); do
+    if \$compose_cmd exec -T mysql sh -lc 'MYSQL_PWD="\${MYSQL_ROOT_PASSWORD}" mysqladmin ping -uroot --silent' >/dev/null 2>&1; then
+      echo "[远端] mysql 就绪"
+      return 0
+    fi
+    sleep "\$delay"
+  done
+  echo "[远端] mysql 检查超时" >&2
+  return 1
+}
 wait_http_ready() {
   local url="\$1"
   local label="\${2:-\$1}"
@@ -316,6 +330,7 @@ fi
 echo "[远端] compose down 完成"
 \$compose_cmd up -d --build --remove-orphans
 echo "[远端] compose up 完成"
+wait_mysql_ready
 if ! \$compose_cmd exec -T backend node dist/scripts/migrate.js; then
   \$compose_cmd exec -T backend npm run migrate
 fi
@@ -333,7 +348,7 @@ else
   REMOTE_CMD="${REMOTE_CMD_BASE}
 if [[ -f '${REMOTE_TMP_CONFIG_FILE}' ]]; then
   \$compose_cmd cp '${REMOTE_TMP_CONFIG_FILE}' backend:/tmp/ai-app-config.json
-  \$compose_cmd exec -T backend npm run config:import -- --input /tmp/ai-app-config.json
+  \$compose_cmd exec -T backend node dist/scripts/import-config.js --input /tmp/ai-app-config.json
 fi
 echo '[远端] 配置导入完成'
 wait_http_ready 'http://127.0.0.1:4000/api/health' '/api/health'

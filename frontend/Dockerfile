@@ -1,4 +1,7 @@
-FROM node:20-alpine as build-stage
+ARG NODE_BASE_IMAGE=node:20-alpine
+ARG NGINX_BASE_IMAGE=nginx:stable-alpine
+
+FROM ${NODE_BASE_IMAGE} as build-stage
 
 WORKDIR /app
 
@@ -13,7 +16,7 @@ ENV VITE_API_URL=
 RUN npm run build
 
 # Production stage
-FROM nginx:stable-alpine AS production-stage
+FROM ${NGINX_BASE_IMAGE} AS production-stage
 
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf

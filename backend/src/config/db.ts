@@ -90,10 +90,8 @@ export const connectDB = async (options?: {skipMigrations?: boolean}) => {
     await ensureDatabaseExists()
     await sequelize.authenticate()
     console.log('Database connected successfully.')
-    if (!options?.skipMigrations) {
-      await runMigrations(sequelize)
-    }
-    const shouldSyncModels = process.env.DB_ENABLE_SYNC === 'true'
+
+    const shouldSyncModels = process.env.DB_ENABLE_SYNC !== 'false'
     if (shouldSyncModels) {
       const enableAutoAlter = process.env.DB_AUTO_ALTER === 'true'
       if (enableAutoAlter) {
@@ -103,7 +101,11 @@ export const connectDB = async (options?: {skipMigrations?: boolean}) => {
       }
       console.log('Database synced via sequelize.sync().')
     } else {
-      console.log('Database schema managed by migrations only.')
+      console.log('Database sync skipped by DB_ENABLE_SYNC=false.')
+    }
+
+    if (!options?.skipMigrations) {
+      await runMigrations(sequelize)
     }
     await seedAdmin()
   } catch (error) {

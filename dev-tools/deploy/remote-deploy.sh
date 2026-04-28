@@ -72,6 +72,21 @@ wait_backend_ready() {
   return 1
 }
 
+wait_mysql_ready() {
+  local retries=40
+  local delay=3
+  local i
+  for ((i=1; i<=retries; i++)); do
+    if compose exec -T mysql sh -lc 'MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysqladmin ping -uroot --silent' >/dev/null 2>&1; then
+      echo "[deploy] mysql ready"
+      return 0
+    fi
+    sleep "$delay"
+  done
+  echo "[deploy] mysql readiness timeout" >&2
+  return 1
+}
+
 check_auth_me_status() {
   local status
   status="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:4000/api/auth/me")"
@@ -87,13 +102,14 @@ cd "$REMOTE_DIR"
 compose pull || true
 compose build
 compose up -d --remove-orphans
+wait_mysql_ready
 if ! compose exec -T backend node dist/scripts/migrate.js; then
   compose exec -T backend npm run migrate
 fi
 
 if [[ -f "$CONFIG_IMPORT_FILE" ]]; then
   compose cp "$CONFIG_IMPORT_FILE" backend:/tmp/ai-app-config.json
-  compose exec -T backend npm run config:import -- --input /tmp/ai-app-config.json
+  compose exec -T backend node dist/scripts/import-config.js --input /tmp/ai-app-config.json
 else
   echo "[deploy] config file not found, skip import: $CONFIG_IMPORT_FILE" >&2
 fi

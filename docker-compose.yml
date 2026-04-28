@@ -10,8 +10,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
       MYSQL_DATABASE: ${DB_NAME:-ai_app}
-      MYSQL_USER: ${DB_USER:-root}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-123456}
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -30,7 +28,10 @@ services:
       - app-network
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:20-alpine}
     container_name: ai_app_backend
     restart: always
     ports:
@@ -57,7 +58,11 @@ services:
       - app-network
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:20-alpine}
+        NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-nginx:stable-alpine}
     container_name: ai_app_frontend
     restart: always
     ports:
@@ -68,7 +73,11 @@ services:
       - app-network
 
   admin:
-    build: ./admin
+    build:
+      context: ./admin
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:20-alpine}
+        NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-nginx:stable-alpine}
     container_name: ai_app_admin
     restart: always
     ports:
