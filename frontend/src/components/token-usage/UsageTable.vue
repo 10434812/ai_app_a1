@@ -83,7 +83,7 @@ const modelOptions = computed(() => {
       <div class="flex flex-wrap gap-4 items-center">
         <div class="flex items-center gap-2">
           <span class="text-sm text-slate-500">模型筛选:</span>
-          <select v-model="modelFilter" @change="handleFilter" class="text-sm border-slate-200 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:border-slate-600">
+          <select v-model="modelFilter" @change="handleFilter" aria-label="按模型筛选" class="text-sm border-slate-200 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-slate-700 dark:border-slate-600">
             <option value="">全部</option>
             <option v-for="model in modelOptions" :key="model" :value="model">{{ model }}</option>
           </select>
@@ -91,9 +91,9 @@ const modelOptions = computed(() => {
         
         <div class="flex items-center gap-2">
           <span class="text-sm text-slate-500">时间范围:</span>
-          <input type="date" v-model="dateRange.start" @change="handleFilter" class="text-sm border-slate-200 rounded-md dark:bg-slate-700 dark:border-slate-600">
+          <input type="date" v-model="dateRange.start" @change="handleFilter" aria-label="开始日期" class="text-sm border-slate-200 rounded-md dark:bg-slate-700 dark:border-slate-600">
           <span class="text-slate-400">-</span>
-          <input type="date" v-model="dateRange.end" @change="handleFilter" class="text-sm border-slate-200 rounded-md dark:bg-slate-700 dark:border-slate-600">
+          <input type="date" v-model="dateRange.end" @change="handleFilter" aria-label="结束日期" class="text-sm border-slate-200 rounded-md dark:bg-slate-700 dark:border-slate-600">
         </div>
       </div>
     </div>
@@ -108,9 +108,11 @@ const modelOptions = computed(() => {
             <th class="px-6 py-4" scope="col">模型</th>
             <th class="px-6 py-4 text-right" scope="col">输入 Tokens</th>
             <th class="px-6 py-4 text-right" scope="col">输出 Tokens</th>
-            <th class="px-6 py-4 text-right cursor-pointer hover:text-primary-600" @click="handleSort('amount')" scope="col">
-              总费用
-              <span class="ml-1">↕</span>
+            <th class="px-6 py-4 text-right" scope="col" aria-sort="none">
+              <button type="button" @click="handleSort('amount')" class="inline-flex items-center justify-end gap-1 text-right cursor-pointer hover:text-primary-600" aria-label="按总费用排序">
+                总费用
+                <span aria-hidden="true">↕</span>
+              </button>
             </th>
             <th class="px-6 py-4 text-center" scope="col">操作</th>
           </tr>
@@ -155,7 +157,7 @@ const modelOptions = computed(() => {
                 {{ row.amount }}
               </td>
               <td class="px-6 py-4 text-center">
-                <button @click="exportRow(row)" class="text-primary-600 hover:text-primary-700 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100">
+                <button @click="exportRow(row)" type="button" :aria-label="`导出 ${row.model || '当前记录'} CSV`" class="text-primary-600 hover:text-primary-700 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100">
                   导出CSV
                 </button>
               </td>
@@ -173,14 +175,18 @@ const modelOptions = computed(() => {
       <div class="flex gap-2">
         <button 
           @click="handlePageChange(page - 1)" 
+          type="button"
           :disabled="page <= 1"
+          aria-label="上一页"
           class="px-3 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           上一页
         </button>
         <button 
           @click="handlePageChange(page + 1)" 
+          type="button"
           :disabled="page >= totalPages"
+          aria-label="下一页"
           class="px-3 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           下一页

@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>全智AI Logo 预览</title>
+    <style>
+      :root {
+        --bg: #eef4ff;
+        --card: rgba(255, 255, 255, 0.82);
+        --line: #d9e4ff;
+        --text: #15213c;
+        --muted: #617095;
+        --accent: #596dff;
+        --accent-2: #3b82f6;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(89,109,255,0.18), transparent 32%),
+          radial-gradient(circle at top right, rgba(59,130,246,0.12), transparent 28%),
+          linear-gradient(180deg, #f8fbff 0%, #edf3ff 100%);
+      }
+
+      .shell {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 48px 28px 64px;
+      }
+
+      .hero {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 28px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border: 1px solid rgba(89,109,255,0.18);
+        border-radius: 999px;
+        background: rgba(255,255,255,0.64);
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+
+      h1 {
+        margin: 18px 0 10px;
+        font-size: 48px;
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+
+      .sub {
+        max-width: 620px;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.7;
+      }
+
+      .hint {
+        padding: 14px 18px;
+        border-radius: 18px;
+        background: rgba(21,33,60,0.05);
+        color: var(--muted);
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 22px;
+      }
+
+      .card {
+        position: relative;
+        overflow: hidden;
+        padding: 24px;
+        border-radius: 30px;
+        border: 1px solid rgba(121, 143, 255, 0.18);
+        background: var(--card);
+        box-shadow: 0 22px 60px rgba(95, 114, 196, 0.12);
+        backdrop-filter: blur(18px);
+      }
+
+      .card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(89,109,255,0.10), transparent 38%, rgba(59,130,246,0.08));
+        pointer-events: none;
+      }
+
+      .tag {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(89,109,255,0.10);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+
+      .preview {
+        position: relative;
+        display: grid;
+        place-items: center;
+        height: 260px;
+        margin: 18px 0 20px;
+        border-radius: 26px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.95), rgba(235,242,255,0.92)),
+          radial-gradient(circle at 20% 20%, rgba(89,109,255,0.18), transparent 32%);
+        border: 1px solid rgba(121, 143, 255, 0.16);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-text strong {
+        display: block;
+        font-size: 24px;
+        letter-spacing: -0.04em;
+      }
+
+      .brand-text span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+      }
+
+      .name {
+        position: relative;
+        margin: 0 0 10px;
+        font-size: 24px;
+        letter-spacing: -0.03em;
+      }
+
+      .desc {
+        position: relative;
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.75;
+      }
+
+      .choose {
+        position: relative;
+        display: inline-flex;
+        margin-top: 18px;
+        padding: 10px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(89,109,255,0.16);
+        background: rgba(255,255,255,0.88);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      @media (max-width: 1024px) {
+        .grid { grid-template-columns: 1fr; }
+        .hero { display: block; }
+        .hint { margin-top: 16px; white-space: normal; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">LOGO LAB</div>
+          <h1>全智AI 本地备选稿</h1>
+          <p class="sub">先选方向，不先定稿。下面 3 个都走浅色科技风，适配你现在页面。你看中哪个，我再把正式页头、favicon、分享图统一成那一版。</p>
+        </div>
+        <div class="hint">直接回复我：1 / 2 / 3</div>
+      </div>
+
+      <div class="grid">
+        <section class="card">
+          <div class="tag">方案 1</div>
+          <div class="preview">
+            <div class="brand">
+              <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="80" height="80" rx="24" fill="url(#a-bg)"/>
+                <path d="M23 28H61" stroke="url(#a-line)" stroke-width="10" stroke-linecap="round"/>
+                <path d="M23 44H54" stroke="url(#a-line)" stroke-width="10" stroke-linecap="round"/>
+                <path d="M23 60H46" stroke="url(#a-line)" stroke-width="10" stroke-linecap="round"/>
+                <circle cx="61" cy="28" r="8" fill="#4F46E5"/>
+                <defs>
+                  <linearGradient id="a-bg" x1="18" y1="12" x2="71" y2="78" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#F8FBFF"/>
+                    <stop offset="1" stop-color="#E3EBFF"/>
+                  </linearGradient>
+                  <linearGradient id="a-line" x1="23" y1="28" x2="61" y2="60" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#6B7CFF"/>
+                    <stop offset="1" stop-color="#3B82F6"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="brand-text">
+                <strong>全智AI</strong>
+                <span>一次访问，多种结果</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="name">汇聚线</h3>
+          <p class="desc">最稳的一版。三条结果线汇入一个焦点，直观表达“聚合输出”。识别度高，落在页头也清爽。</p>
+          <div class="choose">回复 1 选这个</div>
+        </section>
+
+        <section class="card">
+          <div class="tag">方案 2</div>
+          <div class="preview">
+            <div class="brand">
+              <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="80" height="80" rx="24" fill="url(#b-bg)"/>
+                <path d="M25 58C33 47 41 39 53 28" stroke="#6B7CFF" stroke-width="8" stroke-linecap="round"/>
+                <path d="M25 42C33 44 42 44 57 42" stroke="#4F46E5" stroke-width="8" stroke-linecap="round"/>
+                <path d="M25 26C33 37 41 45 53 56" stroke="#3B82F6" stroke-width="8" stroke-linecap="round"/>
+                <circle cx="61" cy="42" r="9" fill="white"/>
+                <circle cx="61" cy="42" r="6" fill="url(#b-dot)"/>
+                <defs>
+                  <linearGradient id="b-bg" x1="14" y1="12" x2="75" y2="77" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#F8FBFF"/>
+                    <stop offset="1" stop-color="#E7EDFF"/>
+                  </linearGradient>
+                  <linearGradient id="b-dot" x1="55" y1="36" x2="67" y2="48" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#7C93FF"/>
+                    <stop offset="1" stop-color="#4F46E5"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="brand-text">
+                <strong>全智AI</strong>
+                <span>一次访问，多种结果</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="name">结果汇点</h3>
+          <p class="desc">更灵动，强调“多路输入汇聚成一个判断点”。图形感更强，做 App 图标也会更有品牌记忆。</p>
+          <div class="choose">回复 2 选这个</div>
+        </section>
+
+        <section class="card">
+          <div class="tag">方案 3</div>
+          <div class="preview">
+            <div class="brand">
+              <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="80" height="80" rx="24" fill="url(#c-bg)"/>
+                <path d="M24 57L45 36" stroke="url(#c-line)" stroke-width="9" stroke-linecap="round"/>
+                <path d="M24 44H51" stroke="url(#c-line)" stroke-width="9" stroke-linecap="round"/>
+                <path d="M24 31L45 52" stroke="url(#c-line)" stroke-width="9" stroke-linecap="round"/>
+                <circle cx="58" cy="44" r="11" fill="url(#c-dot)"/>
+                <circle cx="58" cy="44" r="4" fill="white" fill-opacity="0.96"/>
+                <defs>
+                  <linearGradient id="c-bg" x1="15" y1="12" x2="74" y2="76" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#F7FAFF"/>
+                    <stop offset="1" stop-color="#E0EAFF"/>
+                  </linearGradient>
+                  <linearGradient id="c-line" x1="24" y1="31" x2="58" y2="56" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#7284FF"/>
+                    <stop offset="1" stop-color="#4F46E5"/>
+                  </linearGradient>
+                  <radialGradient id="c-dot" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(58 44) rotate(90) scale(11)">
+                    <stop stop-color="#90A3FF"/>
+                    <stop offset="1" stop-color="#4F46E5"/>
+                  </radialGradient>
+                </defs>
+              </svg>
+              <div class="brand-text">
+                <strong>全智AI</strong>
+                <span>一次访问，多种结果</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="name">聚合光核</h3>
+          <p class="desc">更偏品牌化，像一个“智能引擎核心”。比前两版更科技，也更适合你现在这个产品名的气质。</p>
+          <div class="choose">回复 3 选这个</div>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

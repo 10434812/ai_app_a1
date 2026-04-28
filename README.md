@@ -71,6 +71,24 @@ docker compose exec backend npm run config:import -- --input /tmp/ai-app-config.
 详细说明见：
 - `docs/config-sync.md`
 
+### 4.1.2 一键发布到宝塔（本地触发）
+
+执行：
+
+```bash
+./dev-tools/deploy/bt-deploy.sh --host <服务器IP或域名> --user root --port 22 --branch main --remote-dir /www/www/docker/home/ai_app
+```
+
+说明：
+- 自动整仓同步（默认不覆盖服务器 `.env`）
+- 自动导出并导入 `system_configs`
+- 自动远程执行 `docker compose build/up`、迁移和健康检查
+- 加 `--skip-config-sync` 时，本地无需 Docker
+- 可用 `--node-base-image` / `--nginx-base-image` 覆盖远端构建基础镜像
+
+详细参数见：
+- `dev-tools/deploy/README.md`
+
 ### 4.2 本地开发模式
 
 先起基础设施：

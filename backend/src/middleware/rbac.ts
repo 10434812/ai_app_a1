@@ -39,10 +39,18 @@ const PERMISSION_MAP: Record<Permission, Set<AdminRole>> = {
 }
 
 export const hasPermission = (role: string | undefined, permission: Permission) => {
-  if (!role || !ADMIN_ROLES.has(role as any)) return false
+  if (
+    role !== 'admin' &&
+    role !== 'super_admin' &&
+    role !== 'ops' &&
+    role !== 'finance' &&
+    role !== 'support'
+  ) {
+    return false
+  }
   const allowed = PERMISSION_MAP[permission]
   if (!allowed) return false
-  return allowed.has(role as AdminRole)
+  return allowed.has(role)
 }
 
 export const requirePermission = (permission: Permission) => async (req: Request, res: Response, next: NextFunction) => {
@@ -53,4 +61,3 @@ export const requirePermission = (permission: Permission) => async (req: Request
     next()
   })
 }
-

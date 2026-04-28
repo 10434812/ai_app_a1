@@ -32,6 +32,7 @@ const customPromptForm = ref({
   tags: '',
 })
 const formError = ref('')
+const dialogTitleId = 'prompt-market-title'
 
 const PROMPT_USAGE_KEY = 'prompt_market_usage'
 const PROMPT_RECENT_KEY = 'prompt_market_recent'
@@ -319,7 +320,8 @@ onBeforeUnmount(() => {
     v-if="isOpen"
     class="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6"
     role="dialog"
-    aria-modal="true">
+    aria-modal="true"
+    :aria-labelledby="dialogTitleId">
     <div class="absolute inset-0 bg-slate-900/28" @click="$emit('close')"></div>
 
     <div class="relative z-10 flex h-[min(92vh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-slate-800 shadow-[0_20px_48px_rgba(15,23,42,0.14)] overscroll-contain">
@@ -332,7 +334,7 @@ onBeforeUnmount(() => {
                   模板库
                 </div>
                 <div>
-                  <h2 class="text-[1.9rem] font-black tracking-tight text-slate-900 sm:text-[2rem]">提示词市场</h2>
+                  <h2 :id="dialogTitleId" class="text-[1.9rem] font-black tracking-tight text-slate-900 sm:text-[2rem]">提示词市场</h2>
                   <p class="mt-2 hidden max-w-2xl text-sm leading-6 text-slate-600 sm:block sm:text-[15px]">
                     官方模板负责覆盖高频场景，你自己的模板负责沉淀复用。先收藏，再抽成自己的资产库。
                   </p>
@@ -342,11 +344,15 @@ onBeforeUnmount(() => {
               <div class="flex shrink-0 items-center gap-2 self-start sm:self-auto">
                 <button
                   @click="openCreateForm"
+                  type="button"
+                  aria-label="新建提示词模板"
                   class="whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-100">
                   新建模板
                 </button>
                 <button
                   @click="$emit('close')"
+                  type="button"
+                  aria-label="关闭提示词市场"
                   class="shrink-0 rounded-full border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700">
                   <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12" />
@@ -385,6 +391,7 @@ onBeforeUnmount(() => {
             <button
               v-if="activeCategory !== '全部' || searchQuery"
               @click="resetFilters"
+              type="button"
               class="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600">
               重置筛选
             </button>
@@ -401,6 +408,7 @@ onBeforeUnmount(() => {
             <input
               v-model="searchQuery"
               type="text"
+              aria-label="搜索提示词模板"
               placeholder="搜索模板标题、描述、标签，例如：周报 / 面试 / 调试"
               class="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:bg-white focus:shadow-[0_0_0_4px_rgba(99,102,241,0.08)]"
             >
@@ -411,6 +419,8 @@ onBeforeUnmount(() => {
               v-for="category in categoryOptions"
               :key="category"
               @click="activeCategory = category"
+              type="button"
+              :aria-pressed="activeCategory === category"
               :class="[
                 'shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition',
                 activeCategory === category
@@ -436,6 +446,7 @@ onBeforeUnmount(() => {
             <button
               v-if="activeCategory !== '全部' || searchQuery"
               @click="resetFilters"
+              type="button"
               class="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600">
               重置
             </button>
@@ -469,6 +480,8 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     @click="toggleFavorite(prompt, $event)"
+                    :aria-label="isFavorite(prompt.id) ? `取消收藏 ${prompt.title}` : `收藏 ${prompt.title}`"
+                    :aria-pressed="isFavorite(prompt.id)"
                     class="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
                     :class="isFavorite(prompt.id) ? 'border-amber-200 bg-amber-50 text-amber-500' : ''">
                     <svg class="h-4 w-4" :fill="isFavorite(prompt.id) ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 20 20">
@@ -512,6 +525,8 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     @click="toggleFavorite(prompt, $event)"
+                    :aria-label="`取消收藏 ${prompt.title}`"
+                    aria-pressed="true"
                     class="rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-500">
                     <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                       <path d="m9.049 2.927.951 1.928 2.13.31-1.54 1.5.364 2.121L10 7.764 8.096 8.786l.364-2.121-1.54-1.5 2.13-.31.95-1.928Z" />
@@ -527,7 +542,7 @@ onBeforeUnmount(() => {
                   <div class="text-xs uppercase tracking-[0.22em] text-slate-400">我的模板</div>
                   <h3 class="mt-1 text-lg font-bold text-slate-900">你自己沉淀的专属提示词</h3>
                 </div>
-                <button @click="openCreateForm" class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600">
+                <button type="button" @click="openCreateForm" aria-label="新建我的模板" class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600">
                   新建
                 </button>
               </div>
@@ -541,12 +556,12 @@ onBeforeUnmount(() => {
                     <div class="mt-1 truncate text-sm text-slate-500">{{ prompt.description }}</div>
                   </button>
                   <div class="flex items-center gap-2">
-                    <button type="button" @click="openEditForm(prompt, $event)" class="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-indigo-200 hover:text-indigo-500">
+                    <button type="button" @click="openEditForm(prompt, $event)" :aria-label="`编辑 ${prompt.title}`" class="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-indigo-200 hover:text-indigo-500">
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
                     </button>
-                    <button type="button" @click="removeCustomPrompt(prompt, $event)" class="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-rose-200 hover:text-rose-500">
+                    <button type="button" @click="removeCustomPrompt(prompt, $event)" :aria-label="`删除 ${prompt.title}`" class="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-rose-200 hover:text-rose-500">
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
@@ -641,6 +656,9 @@ onBeforeUnmount(() => {
                   <div class="mt-1 h-10 w-10 shrink-0 rounded-2xl border border-slate-200 bg-slate-50"></div>
                   <button
                     @click="toggleFavorite(prompt, $event)"
+                    type="button"
+                    :aria-label="isFavorite(prompt.id) ? `取消收藏 ${prompt.title}` : `收藏 ${prompt.title}`"
+                    :aria-pressed="isFavorite(prompt.id)"
                     class="rounded-full border border-slate-200 bg-white p-2 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
                     :class="isFavorite(prompt.id) ? 'border-amber-200 bg-amber-50 text-amber-500' : ''">
                     <svg class="h-4 w-4" :fill="isFavorite(prompt.id) ? 'currentColor' : 'none'" stroke="currentColor" viewBox="0 0 20 20">
@@ -650,7 +668,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <button @click="selectPrompt(prompt)" class="mt-4 flex-1 text-left">
+              <button type="button" @click="selectPrompt(prompt)" class="mt-4 flex-1 text-left">
                 <div class="line-clamp-5 text-sm leading-6 text-slate-500">{{ prompt.content }}</div>
               </button>
 
@@ -664,17 +682,22 @@ onBeforeUnmount(() => {
                     <button
                       v-if="prompt.isCustom"
                       @click="openEditForm(prompt, $event)"
+                      type="button"
+                      :aria-label="`编辑 ${prompt.title}`"
                       class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600">
                       编辑
                     </button>
                     <button
                       v-if="prompt.isCustom"
                       @click="removeCustomPrompt(prompt, $event)"
+                      type="button"
+                      :aria-label="`删除 ${prompt.title}`"
                     class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-500">
                     删除
                   </button>
                   <button
                     @click="selectPrompt(prompt)"
+                    type="button"
                     class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 transition hover:text-indigo-500">
                     一键插入
                     <svg class="h-4 w-4 transition group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -695,7 +718,7 @@ onBeforeUnmount(() => {
               <div class="text-xs uppercase tracking-[0.22em] text-slate-400">My Prompt</div>
               <h3 class="mt-1 text-2xl font-black text-slate-900">{{ editingPromptId ? '编辑我的模板' : '新建我的模板' }}</h3>
             </div>
-            <button @click="closeCreateForm" class="rounded-full border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700">
+            <button type="button" @click="closeCreateForm" aria-label="关闭模板编辑" class="rounded-full border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -728,10 +751,10 @@ onBeforeUnmount(() => {
           <div v-if="formError" class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{{ formError }}</div>
 
           <div class="mt-5 flex items-center justify-end gap-3">
-            <button @click="closeCreateForm" class="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+            <button type="button" @click="closeCreateForm" class="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
               取消
             </button>
-            <button @click="createCustomPrompt" class="rounded-full bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600">
+            <button type="button" @click="createCustomPrompt" class="rounded-full bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-600">
               {{ editingPromptId ? '保存修改' : '保存模板' }}
             </button>
           </div>

@@ -1,5 +1,6 @@
 import {Table, Column, Model, DataType, HasMany, ForeignKey, BelongsTo, PrimaryKey, Default, IsUUID} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {User} from './User.ts'
 import {Message} from './Message.ts'
 
@@ -19,7 +20,7 @@ export class Conversation extends Model {
   declare userId: string
 
   @BelongsTo(() => User)
-  declare user: User
+  declare user: NonAttribute<User>
 
   @Column({
     type: DataType.STRING,
@@ -42,5 +43,5 @@ export class Conversation extends Model {
   declare isArchived: boolean
 
   @HasMany(() => Message)
-  declare messages: Message[]
+  declare messages: NonAttribute<Message[]>
 }

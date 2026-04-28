@@ -1,0 +1,4 @@
+interface:
+  display_name: "Outside Context Compressor"
+  short_description: "Maximally compress non-project context, retaining only in-project execution essentials."
+  default_prompt: "Use $compress-outside-project-context to keep only current-project essentials and elide all external context."

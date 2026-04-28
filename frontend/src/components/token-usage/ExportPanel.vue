@@ -20,7 +20,9 @@ const handleExport = (format: 'csv' | 'excel') => {
     <div class="flex gap-3">
       <button 
         @click="handleExport('csv')"
+        type="button"
         :disabled="loading"
+        aria-label="导出 CSV 文件"
         class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -30,7 +32,9 @@ const handleExport = (format: 'csv' | 'excel') => {
       </button>
       <button 
         @click="handleExport('excel')"
+        type="button"
         :disabled="loading"
+        aria-label="导出 Excel 文件"
         class="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

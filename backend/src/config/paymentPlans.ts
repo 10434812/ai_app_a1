@@ -1,4 +1,11 @@
-export const PAYMENT_PLANS = {
+export interface PaymentPlan {
+  amount: number
+  name: string
+  durationDays?: number
+  tokens?: number
+}
+
+export const PAYMENT_PLANS: Record<'monthly' | 'quarterly' | 'yearly' | 'token_pack_1000', PaymentPlan> = {
   monthly: {amount: 29.9, durationDays: 30, name: '月卡会员'},
   quarterly: {amount: 79.9, durationDays: 90, name: '季卡会员'},
   yearly: {amount: 299.9, durationDays: 365, name: '年卡会员'},
@@ -6,6 +13,15 @@ export const PAYMENT_PLANS = {
 }
 
 export type PlanKey = keyof typeof PAYMENT_PLANS
+
+export interface PaymentPlanSnapshot {
+  key: PlanKey
+  amount: number
+  durationDays: number
+  tokens: number
+  name: string
+  createdAt: string
+}
 
 export const inferPlanKeyFromOrderPlan = (plan: string): PlanKey | '' => {
   if (plan === 'monthly') return 'monthly'
@@ -23,20 +39,29 @@ export const getPlanName = (planKey: string) => {
   return planKey || '未知套餐'
 }
 
-export const makePlanSnapshot = (planKey: PlanKey, plan: (typeof PAYMENT_PLANS)[PlanKey]) =>
+export const makePlanSnapshot = (planKey: PlanKey, plan: PaymentPlan) =>
   JSON.stringify({
     key: planKey,
-    amount: Number((plan as any).amount || 0),
-    durationDays: Number((plan as any).durationDays || 0),
-    tokens: Number((plan as any).tokens || 0),
-    name: (plan as any).name || '',
+    amount: Number(plan.amount || 0),
+    durationDays: Number(plan.durationDays || 0),
+    tokens: Number(plan.tokens || 0),
+    name: plan.name || '',
     createdAt: new Date().toISOString(),
-  })
+  } satisfies PaymentPlanSnapshot)
 
-export const parsePlanSnapshot = (raw: string | null | undefined) => {
+export const parsePlanSnapshot = (raw: string | null | undefined): PaymentPlanSnapshot | null => {
   if (!raw) return null
   try {
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw) as Partial<PaymentPlanSnapshot>
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.key !== 'string') return null
+    return {
+      key: parsed.key as PlanKey,
+      amount: Number(parsed.amount || 0),
+      durationDays: Number(parsed.durationDays || 0),
+      tokens: Number(parsed.tokens || 0),
+      name: String(parsed.name || ''),
+      createdAt: String(parsed.createdAt || ''),
+    }
   } catch {
     return null
   }

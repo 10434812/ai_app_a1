@@ -1,5 +1,6 @@
 import {Table, Column, Model, DataType, ForeignKey, BelongsTo, PrimaryKey, Default, IsUUID} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {Conversation} from './Conversation.ts'
 
 @Table({tableName: 'messages', timestamps: true})
@@ -18,7 +19,7 @@ export class Message extends Model {
   declare conversationId: string
 
   @BelongsTo(() => Conversation)
-  declare conversation: Conversation
+  declare conversation: NonAttribute<Conversation>
 
   @Column({
     type: DataType.ENUM('user', 'assistant', 'system'),

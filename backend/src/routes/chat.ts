@@ -16,6 +16,10 @@ import {ALL_MODELS} from '../services/llm/config.ts'
 import {SystemConfig} from '../models/SystemConfig.ts'
 import {isModelActive} from '../services/modelStatusService.ts'
 import {getPublicModelStatusMap} from '../services/modelCatalogService.ts'
+import type {ChatMessage} from '../services/llm/types.ts'
+import {detectRealtimeIntent} from '../services/realtimeIntentService.ts'
+import {fetchRealtimeQuote} from '../services/realtimeQuoteService.ts'
+import {formatRealtimeAnswer} from '../services/realtimeAnswerFormatter.ts'
 
 export const chatRouter = Router()
 
@@ -27,7 +31,111 @@ const MODEL_ID_ALIASES: Record<string, string> = {
 }
 const IDENTITY_QUERY_RE = /(什么模型|哪个模型|模型id|model id|底层模型|你是谁|你是哪个|你是什么ai|你的身份)/i
 
+const inflightRealtimeRequests = new Map<string, Promise<{
+  kind: string
+  target: string
+  displayName: string
+  title: string
+  content: string
+  sourceLabel: string
+  timestampLabel: string
+}>>()
+
+const toSafeStreamErrorMessage = (error: unknown) => {
+  const raw = error instanceof Error ? error.message.trim() : typeof error === 'string' ? error.trim() : ''
+  if (!raw) return '请求失败，请稍后重试'
+  if (raw.includes('Token余额不足')) return 'Token余额不足，请充值后重试'
+  if (raw.includes('Token预留失败')) return '余额不足或服务繁忙，请稍后重试'
+  if (raw.includes('模型未返回有效文本内容')) return '模型未返回有效内容，请重试'
+  if (raw.includes('模型不可用') || raw.includes('未启用')) return '所选模型暂不可用，请更换后重试'
+  return '请求失败，请稍后重试'
+}
+
 const resolveModelAlias = (modelId: string) => MODEL_ID_ALIASES[modelId] || modelId
+
+const getChatMessageContent = (message: Pick<ChatMessage, 'content'> | null | undefined) =>
+  typeof message?.content === 'string' ? message.content : ''
+
+const normalizeRealtimeQueryKey = (query: string) =>
+  String(query || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+
+const getRealtimeRequestKey = (ownerKey: string, query: string) => `${ownerKey}:${normalizeRealtimeQueryKey(query)}`
+
+const getSharedRealtimeResponse = (
+  key: string,
+  factory: () => Promise<{
+    kind: string
+    target: string
+    displayName: string
+    title: string
+    content: string
+    sourceLabel: string
+    timestampLabel: string
+  }>,
+) => {
+  const existing = inflightRealtimeRequests.get(key)
+  if (existing) {
+    return {promise: existing, isPrimary: false}
+  }
+
+  const promise = factory().finally(() => {
+    inflightRealtimeRequests.delete(key)
+  })
+  inflightRealtimeRequests.set(key, promise)
+  return {promise, isPrimary: true}
+}
+
+const buildRealtimeFallbackMessage = (query: string, reason?: unknown): ChatMessage => {
+  const raw = reason instanceof Error ? reason.message : String(reason || '')
+  const safeReason = raw.trim().slice(0, 180)
+  const lines = [
+    'Realtime lookup fallback:',
+    `- Original user question: ${query}`,
+    safeReason ? `- Live quote fetch failed: ${safeReason}` : '- Live quote fetch failed.',
+    '- You may answer with your general knowledge, but you MUST clearly say the data may not be realtime.',
+    '- Do not present stale figures as if they are current.',
+  ]
+
+  return {
+    role: 'system',
+    content: lines.join('\n'),
+  }
+}
+
+const buildRealtimeInjectionMessage = (
+  query: string,
+  realtime: {
+    kind: string
+    target: string
+    displayName: string
+    title: string
+    content: string
+    sourceLabel: string
+    timestampLabel: string
+  },
+): ChatMessage => {
+  const lines = [
+    '[RealtimeQuoteInjected]',
+    `- User question: ${query}`,
+    `- Kind: ${realtime.kind}`,
+    `- Target: ${realtime.target}`,
+    `- Display name: ${realtime.displayName}`,
+    `- Source: ${realtime.sourceLabel}`,
+    `- Updated at: ${realtime.timestampLabel}`,
+    '- Ground truth snapshot:',
+    realtime.content,
+    '- Instruction: Use the realtime values above as primary facts and answer naturally in the assistant voice.',
+    '- You MUST mention source and update time in your final answer.',
+    '- Do not claim stale memorized values as current market data.',
+  ]
+  return {
+    role: 'system',
+    content: lines.join('\n'),
+  }
+}
 
 const mergeSystemMessagesToFront = (messages: Array<{role?: string; content?: string}>) => {
   const systemContents: string[] = []
@@ -500,6 +608,7 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
   // Optional auth user: logged-in users会走扣费逻辑，游客则不扣费
   const userId = req.user?.id ?? null
   metricCounters.chatRequest()
+  const latestUserQuery = [...messages].reverse().find((m: ChatMessage) => m?.role === 'user')?.content || ''
 
   let user: User | null = null
   const billingConfig = await getBillingConfig()
@@ -563,7 +672,7 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
 
       // Intelligent Context Compression
       // Strategy:
-      // 1. Always keep the system prompt (if any) and the last 6 messages intact.
+      // 1. Always keep the system prompt (when present) and the last 6 messages intact.
       // 2. For older messages, compress content if it exceeds a certain length.
       // 3. Drop oldest messages if total token count (estimated) exceeds safety limit.
 
@@ -622,15 +731,57 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
   }
   // --- Context Building End ---
 
-  const latestUserQuery = [...messages].reverse().find((m: any) => m?.role === 'user')?.content || ''
   const runtimeGuardrail = buildRuntimeGuardrailMessage(latestUserQuery)
   const modelIdentityGuardrail = buildModelIdentityGuardrailMessage(model)
-  const realtimeContext = await buildRealtimeContextMessage(latestUserQuery)
   const routeMeta = await buildRouteMeta(String(model))
-  const prependSystemMessages = realtimeContext ? [runtimeGuardrail, modelIdentityGuardrail, realtimeContext] : [runtimeGuardrail, modelIdentityGuardrail]
-  contextMessages = mergeSystemMessagesToFront([...prependSystemMessages, ...contextMessages])
-  inputLenForCost = contextMessages.reduce((acc: number, m: any) => acc + (m?.content?.length || 0), 0)
-  const estimatedPromptTokens = estimateTextTokens(contextMessages.map((m: any) => m?.content || '').join('\n'))
+  const realtimeIntent = detectRealtimeIntent(latestUserQuery)
+
+  if (realtimeIntent.matched) {
+    const realtimeOwnerKey = conversationId || userId || req.ip || 'guest'
+    const realtimeRequestKey = getRealtimeRequestKey(realtimeOwnerKey, latestUserQuery)
+    const {promise} = getSharedRealtimeResponse(realtimeRequestKey, async () => {
+      const quote = await fetchRealtimeQuote(realtimeIntent)
+      const presentation = formatRealtimeAnswer(quote)
+      return {
+        kind: quote.kind,
+        target: quote.target,
+        displayName: quote.displayName,
+        title: presentation.title,
+        content: presentation.content,
+        sourceLabel: presentation.sourceLabel,
+        timestampLabel: presentation.timestampLabel,
+      }
+    })
+
+    try {
+      const realtimeResponse = await promise
+      const realtimeInjection = buildRealtimeInjectionMessage(latestUserQuery, realtimeResponse)
+      contextMessages = mergeSystemMessagesToFront([runtimeGuardrail, modelIdentityGuardrail, realtimeInjection, ...contextMessages])
+    } catch (error: unknown) {
+      captureError(error, {
+        scope: 'chat.realtime',
+        model,
+        conversationId: conversationId || undefined,
+        realtimeKind: realtimeIntent.kind,
+        realtimeTarget: realtimeIntent.target,
+      })
+      console.error('Realtime quote fetch failed:', error)
+      const realtimeFallback = buildRealtimeFallbackMessage(latestUserQuery, error)
+      const realtimeContext = await buildRealtimeContextMessage(latestUserQuery)
+      const prependSystemMessages = realtimeContext
+        ? [runtimeGuardrail, modelIdentityGuardrail, realtimeFallback, realtimeContext]
+        : [runtimeGuardrail, modelIdentityGuardrail, realtimeFallback]
+      contextMessages = mergeSystemMessagesToFront([...prependSystemMessages, ...contextMessages])
+    }
+  } else {
+    const realtimeContext = await buildRealtimeContextMessage(latestUserQuery)
+    const prependSystemMessages = realtimeContext
+      ? [runtimeGuardrail, modelIdentityGuardrail, realtimeContext]
+      : [runtimeGuardrail, modelIdentityGuardrail]
+    contextMessages = mergeSystemMessagesToFront([...prependSystemMessages, ...contextMessages])
+  }
+  inputLenForCost = contextMessages.reduce((acc: number, m: ChatMessage) => acc + getChatMessageContent(m).length, 0)
+  const estimatedPromptTokens = estimateTextTokens(contextMessages.map((m: ChatMessage) => getChatMessageContent(m)).join('\n'))
   const minCost = calculateChatCost(billingConfig, model, estimatedPromptTokens, 0)
   const selectedModelCount = getSelectedModelCount(req.body?.selectedModelCount)
 
@@ -639,8 +790,8 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
       const reserveTarget = calculateReservationTarget(user.tokensBalance, minCost, selectedModelCount)
       const reservation = await reserveUserTokenBudget(user.id, reserveTarget)
       reservedAmount = reservation.reservedAmount
-    } catch (err: any) {
-      const msg = err?.message || 'Token预留失败'
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Token预留失败'
       if (msg.includes('Insufficient balance')) {
         res.status(402).json({error: 'Token余额不足，请充值'})
         return
@@ -724,7 +875,8 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
 
       fullResponse += chunk || ''
       const success = res.write(`data: ${JSON.stringify({content: chunk})}\n\n`)
-      if ((res as any).flush) (res as any).flush()
+      const flushableRes = res as Response & {flush?: () => void}
+      if (typeof flushableRes.flush === 'function') flushableRes.flush()
     })
     providerUsage = streamResult?.usage
     console.log(`[StreamEnd] Model: ${model} TotalChunks: ${chunkCount}`)
@@ -795,11 +947,11 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
         metricCounters.tokenDeductSuccess()
         tokenSettled = true
         console.log(`Deducted ${cost} tokens for User ${user.id}`)
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Token deduction error:', err)
         metricCounters.tokenDeductFailed()
         await releaseReservationSafely()
-        res.write(`data: ${JSON.stringify({error: err?.message || 'Token扣费失败，请稍后重试'})}\n\n`)
+        res.write(`data: ${JSON.stringify({error: toSafeStreamErrorMessage(err)})}\n\n`)
         res.write('data: [DONE]\n\n')
         res.end()
         return
@@ -809,10 +961,10 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
 
     res.write('data: [DONE]\n\n')
     res.end()
-  } catch (error: any) {
+  } catch (error: unknown) {
     await releaseReservationSafely()
     captureError(error, {scope: 'chat.stream', model, conversationId: conversationId || undefined})
-    res.write(`data: ${JSON.stringify({error: error.message || 'Unknown error'})}\n\n`)
+    res.write(`data: ${JSON.stringify({error: toSafeStreamErrorMessage(error)})}\n\n`)
     res.end()
   }
 })

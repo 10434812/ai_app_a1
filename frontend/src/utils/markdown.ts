@@ -31,6 +31,24 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
+interface MarkdownTokenLike {
+  attrs?: Array<[string, string]> | null
+  attrIndex(name: string): number
+  attrPush(attr: [string, string]): void
+}
+
+interface MarkdownRendererLike {
+  renderToken(tokens: MarkdownTokenLike[], idx: number, options: unknown): string
+}
+
+type MarkdownRenderRule = (
+  tokens: MarkdownTokenLike[],
+  idx: number,
+  options: unknown,
+  env: unknown,
+  self: MarkdownRendererLike,
+) => string
+
 const md = new MarkdownIt({
   html: false,
   xhtmlOut: false,
@@ -50,12 +68,12 @@ const md = new MarkdownIt({
 
 // Custom link rendering to open in new tab
 const defaultRender =
-  md.renderer.rules.link_open ||
-  function (tokens: any[], idx: number, options: any, env: any, self: any) {
+  (md.renderer.rules.link_open as MarkdownRenderRule | undefined) ||
+  function (tokens: MarkdownTokenLike[], idx: number, options: unknown, _env: unknown, self: MarkdownRendererLike) {
     return self.renderToken(tokens, idx, options)
   }
 
-md.renderer.rules.link_open = function (tokens: any[], idx: number, options: any, env: any, self: any) {
+const linkOpenRule: MarkdownRenderRule = function (tokens: MarkdownTokenLike[], idx: number, options: unknown, env: unknown, self: MarkdownRendererLike) {
   const aIndex = tokens[idx].attrIndex('target')
 
   if (aIndex < 0) {
@@ -68,6 +86,8 @@ md.renderer.rules.link_open = function (tokens: any[], idx: number, options: any
 
   return defaultRender(tokens, idx, options, env, self)
 }
+
+md.renderer.rules.link_open = linkOpenRule as typeof md.renderer.rules.link_open
 
 export function renderMarkdown(content: string): string {
   if (!content) return ''

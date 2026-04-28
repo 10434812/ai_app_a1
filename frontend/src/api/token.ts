@@ -1,13 +1,4 @@
-import {API_BASE_URL} from '../constants/config'
-import {useAuthStore} from '../stores/auth'
-
-const getHeaders = () => {
-  const authStore = useAuthStore()
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${authStore.token}`,
-  }
-}
+import {requestBlob, requestJson} from '../utils/http'
 
 export interface TokenStats {
   totalUsage: number
@@ -46,11 +37,7 @@ export interface TokenTrendItem {
 }
 
 export const getTokenStats = async (): Promise<TokenStats> => {
-  const res = await fetch(`${API_BASE_URL}/api/token/stats`, {
-    headers: getHeaders(),
-  })
-  if (!res.ok) throw new Error('Failed to fetch stats')
-  return res.json()
+  return requestJson<TokenStats>('/api/token/stats', {}, '获取统计失败')
 }
 
 export const getTokenHistory = async (page = 1, limit = 10, filters: TokenHistoryFilters = {}): Promise<TokenHistoryResponse> => {
@@ -63,11 +50,7 @@ export const getTokenHistory = async (page = 1, limit = 10, filters: TokenHistor
   if (filters.start) params.append('start', filters.start)
   if (filters.end) params.append('end', filters.end)
 
-  const res = await fetch(`${API_BASE_URL}/api/token/history?${params.toString()}`, {
-    headers: getHeaders(),
-  })
-  if (!res.ok) throw new Error('Failed to fetch history')
-  return res.json()
+  return requestJson<TokenHistoryResponse>(`/api/token/history?${params.toString()}`, {}, '获取明细失败')
 }
 
 export const getTokenTrend = async (days = 30): Promise<TokenTrendItem[]> => {
@@ -75,22 +58,13 @@ export const getTokenTrend = async (days = 30): Promise<TokenTrendItem[]> => {
     days: days.toString(),
   })
   
-  const res = await fetch(`${API_BASE_URL}/api/token/trend?${params.toString()}`, {
-    headers: getHeaders(),
-  })
-  if (!res.ok) throw new Error('Failed to fetch trend')
-  const data = await res.json()
-  // Ensure count is number
-  return data.map((item: any) => ({
+  const data = await requestJson<TokenTrendItem[]>(`/api/token/trend?${params.toString()}`, {}, '获取趋势失败')
+  return data.map((item) => ({
     ...item,
-    count: Number(item.count)
+    count: Number(item.count),
   }))
 }
 
 export const exportTokenHistory = async () => {
-  const res = await fetch(`${API_BASE_URL}/api/token/export`, {
-    headers: getHeaders(),
-  })
-  if (!res.ok) throw new Error('Failed to export')
-  return res.blob()
+  return requestBlob('/api/token/export', {}, '导出失败')
 }

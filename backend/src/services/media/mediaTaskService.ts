@@ -47,7 +47,28 @@ type TaskResultPayload =
       message: string
     }
 
-const parseTaskMeta = (raw: string | null): Record<string, any> => {
+interface ParsedTaskMeta {
+  modelId?: string
+  [key: string]: unknown
+}
+
+interface RedisClientState {
+  isOpen?: boolean
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message.trim()
+  if (typeof error === 'string') return error.trim()
+  const normalized = error as {message?: string} | null | undefined
+  return String(normalized?.message || '').trim()
+}
+
+const isRedisOpen = () => {
+  const client = redisClient as RedisClientState
+  return Boolean(client.isOpen)
+}
+
+const parseTaskMeta = (raw: string | null): ParsedTaskMeta => {
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
@@ -123,7 +144,7 @@ export const toMediaTaskView = (task: MediaTask): MediaTaskView => ({
 })
 
 const classifyTaskError = (error: unknown) => {
-  const message = String((error as any)?.message || '').trim()
+  const message = getErrorMessage(error)
   const lower = message.toLowerCase()
 
   if (message.includes('Insufficient balance')) {
@@ -171,7 +192,7 @@ const calcBackoffMs = (attempt: number) => {
 }
 
 const acquireWorkerLock = async () => {
-  if (!(redisClient as any).isOpen) return false
+  if (!isRedisOpen()) return false
   const lock = await redisClient.set(WORKER_LOCK_KEY, String(process.pid), {
     NX: true,
     EX: WORKER_LOCK_SECONDS,
@@ -180,7 +201,7 @@ const acquireWorkerLock = async () => {
 }
 
 const releaseWorkerLock = async () => {
-  if (!(redisClient as any).isOpen) return
+  if (!isRedisOpen()) return
   try {
     await redisClient.del(WORKER_LOCK_KEY)
   } catch {
@@ -249,7 +270,12 @@ const processImageTask = async (task: MediaTask) => {
 }
 
 const processVideoTask = async (task: MediaTask) => {
-  throw new Error('视频生成功能正在接入中，下一版本开放。')
+  task.status = 'failed'
+  task.errorCode = 'VIDEO_NOT_IMPLEMENTED'
+  task.errorMessage = '视频生成功能正在接入中，暂未开放'
+  task.completedAt = new Date()
+  task.nextRetryAt = null
+  await task.save()
 }
 
 const processTask = async (task: MediaTask) => {

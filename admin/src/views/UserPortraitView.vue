@@ -4,11 +4,16 @@ import { getUserPortraits, type UserPortrait } from '../api/admin'
 
 const portraits = ref<UserPortrait[]>([])
 const loading = ref(true)
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(50)
 
 const loadData = async () => {
   loading.value = true
   try {
-    portraits.value = await getUserPortraits()
+    const data = await getUserPortraits(page.value, pageSize.value)
+    portraits.value = data.items
+    total.value = data.total
   } catch (error) {
     console.error('Failed to load user portraits', error)
   } finally {
@@ -23,18 +28,33 @@ onMounted(() => {
 const formatDate = (date: string) => {
   return new Date(date).toLocaleString()
 }
+
+const prevPage = async () => {
+  if (page.value <= 1) return
+  page.value -= 1
+  await loadData()
+}
+
+const nextPage = async () => {
+  if (page.value * pageSize.value >= total.value) return
+  page.value += 1
+  await loadData()
+}
 </script>
 
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-slate-800">用户画像</h1>
-      <button @click="loadData" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        刷新数据
-      </button>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-slate-500">共 {{ total }} 位用户</span>
+        <button @click="loadData" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          刷新数据
+        </button>
+      </div>
     </div>
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -80,6 +100,12 @@ const formatDate = (date: string) => {
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 text-sm">
+      <button @click="prevPage" :disabled="page <= 1 || loading" class="px-3 py-1.5 rounded border border-slate-200 disabled:opacity-50">上一页</button>
+      <span class="text-slate-500">第 {{ page }} 页</span>
+      <button @click="nextPage" :disabled="page * pageSize >= total || loading" class="px-3 py-1.5 rounded border border-slate-200 disabled:opacity-50">下一页</button>
     </div>
   </div>
 </template>

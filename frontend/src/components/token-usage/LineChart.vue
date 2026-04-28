@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onUnmounted, nextTick } from 'vue'
 import { echarts } from '../../utils/echarts'
+import type { CallbackDataParams } from 'echarts/types/dist/shared'
 
 const props = defineProps<{
   data: { date: string; value: number; name?: string }[]
@@ -13,6 +14,18 @@ const emit = defineEmits(['update:dimension'])
 
 const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
+
+const readAxisTooltipPoint = (params: CallbackDataParams[] | CallbackDataParams) => {
+  const point = Array.isArray(params) ? params[0] : params
+  const axisValue = typeof point.axisValue === 'string' ? point.axisValue : String(point.axisValue ?? '')
+  const rawValue = Array.isArray(point.value) ? point.value[1] ?? point.value[0] : point.value
+  const value = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
+
+  return {
+    axisValue,
+    value: Number.isFinite(value) ? value : 0,
+  }
+}
 
 const initChart = () => {
   if (!chartRef.value) return
@@ -38,11 +51,10 @@ const updateChart = () => {
       textStyle: {
         color: '#1E293B'
       },
-      formatter: (params: any) => {
-        const date = params[0].axisValue
-        const val = params[0].value
-        return `<div class="font-medium text-slate-800">${date}</div>
-                <div class="text-primary-600 font-bold">${val.toLocaleString()} Tokens</div>`
+      formatter: (params: CallbackDataParams[] | CallbackDataParams) => {
+        const {axisValue, value} = readAxisTooltipPoint(params)
+        return `<div class="font-medium text-slate-800">${axisValue}</div>
+                <div class="text-primary-600 font-bold">${value.toLocaleString()} Tokens</div>`
       }
     },
     grid: {

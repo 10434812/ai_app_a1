@@ -1,6 +1,8 @@
 import type {Sequelize} from 'sequelize-typescript'
 import {MIGRATIONS} from './registry.ts'
 
+type MigrationRow = {id: string}
+
 const TABLE_NAME = 'schema_migrations'
 
 const ensureMigrationsTable = async (sequelize: Sequelize) => {
@@ -15,7 +17,7 @@ const ensureMigrationsTable = async (sequelize: Sequelize) => {
 
 const getAppliedMigrationIds = async (sequelize: Sequelize): Promise<Set<string>> => {
   const [rows] = await sequelize.query(`SELECT id FROM \`${TABLE_NAME}\`;`)
-  const ids = Array.isArray(rows) ? rows.map((row: any) => String(row.id)) : []
+  const ids = Array.isArray(rows) ? (rows as MigrationRow[]).map((row) => String(row.id)) : []
   return new Set(ids)
 }
 
@@ -26,11 +28,13 @@ export const runMigrations = async (sequelize: Sequelize) => {
   for (const migration of MIGRATIONS) {
     if (applied.has(migration.id)) continue
     console.log(`[Migration] applying ${migration.id} - ${migration.description}`)
-    await migration.up(sequelize)
-    await sequelize.query(
-      `INSERT INTO \`${TABLE_NAME}\` (id, description) VALUES (?, ?);`,
-      {replacements: [migration.id, migration.description]},
-    )
+    await sequelize.transaction(async (transaction) => {
+      await migration.up(sequelize, transaction)
+      await sequelize.query(
+        `INSERT INTO \`${TABLE_NAME}\` (id, description) VALUES (?, ?);`,
+        {replacements: [migration.id, migration.description], transaction},
+      )
+    })
   }
 }
 
@@ -39,7 +43,7 @@ export const rollbackLastMigration = async (sequelize: Sequelize) => {
   const [rows] = await sequelize.query(
     `SELECT id FROM \`${TABLE_NAME}\` ORDER BY executedAt DESC, id DESC LIMIT 1;`,
   )
-  const last = Array.isArray(rows) && rows.length > 0 ? String((rows[0] as any).id) : ''
+  const last = Array.isArray(rows) && rows.length > 0 ? String((rows[0] as MigrationRow).id) : ''
   if (!last) {
     console.log('[Migration] no migration to rollback')
     return
@@ -51,8 +55,11 @@ export const rollbackLastMigration = async (sequelize: Sequelize) => {
   }
 
   console.log(`[Migration] rollback ${migration.id} - ${migration.description}`)
-  await migration.down(sequelize)
-  await sequelize.query(`DELETE FROM \`${TABLE_NAME}\` WHERE id = ?;`, {
-    replacements: [migration.id],
+  await sequelize.transaction(async (transaction) => {
+    await migration.down(sequelize, transaction)
+    await sequelize.query(`DELETE FROM \`${TABLE_NAME}\` WHERE id = ?;`, {
+      replacements: [migration.id],
+      transaction,
+    })
   })
 }

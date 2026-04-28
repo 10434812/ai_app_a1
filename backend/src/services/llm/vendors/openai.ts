@@ -1,23 +1,79 @@
 import {BaseLLMProvider} from '../provider.ts'
 import {ChatMessage, ChatStreamResult, LLMUsage} from '../types.ts'
 
-function extractContentFromChoice(payload: any): string {
-  const choice = payload?.choices?.[0]
-  if (!choice) return ''
+interface OpenAIContentPart {
+  type?: string
+  text?: string
+  content?: string
+}
 
-  // Streaming delta content
-  if (typeof choice?.delta?.content === 'string') return choice.delta.content
+interface OpenAIChoice {
+  delta?: {content?: string}
+  message?: {content?: string | OpenAIContentPart[]}
+  text?: string
+}
 
-  // Non-stream completion content
-  if (typeof choice?.message?.content === 'string') return choice.message.content
+interface OpenAIUsagePayload {
+  prompt_tokens?: number
+  input_tokens?: number
+  completion_tokens?: number
+  output_tokens?: number
+  total_tokens?: number
+}
 
-  // Some providers return content blocks array
-  const messageContent = choice?.message?.content
-  if (Array.isArray(messageContent)) {
-    return messageContent
-      .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+interface OpenAIResponsePayload {
+  choices?: OpenAIChoice[]
+  usage?: OpenAIUsagePayload
+  data?: {usage?: OpenAIUsagePayload}
+  error?: {message?: string}
+  message?: string
+  text?: string
+  content?: string | OpenAIContentPart[]
+  output_text?: string | OpenAIContentPart[]
+  outputText?: string | OpenAIContentPart[]
+}
+
+const extractContentFromContentValue = (value: string | OpenAIContentPart[] | null | undefined) => {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    return value
+      .map((part) => {
+        if (typeof part?.text === 'string') return part.text
+        if (typeof part?.content === 'string') return part.content
+        return ''
+      })
       .join('')
   }
+  return ''
+}
+
+function extractContentFromChoice(payload: OpenAIResponsePayload | null): string {
+  const choice = payload?.choices?.[0]
+  if (choice) {
+    // Streaming delta content
+    if (typeof choice?.delta?.content === 'string') return choice.delta.content
+
+    // Some vendors put the visible answer into `text`
+    if (typeof choice?.text === 'string') return choice.text
+
+    // Non-stream completion content
+    const messageContent = choice?.message?.content
+    const extractedMessageContent = extractContentFromContentValue(messageContent)
+    if (extractedMessageContent) return extractedMessageContent
+
+    // Last-resort compatibility: some providers return the visible text under `delta.text`
+    const delta = choice?.delta as {content?: string; text?: string; output_text?: string; reasoning_content?: string} | undefined
+    if (typeof delta?.text === 'string') return delta.text
+  }
+
+  // Top-level fallback formats used by some compatible gateways
+  const topLevelContent =
+    extractContentFromContentValue(payload?.content) ||
+    extractContentFromContentValue(payload?.output_text) ||
+    extractContentFromContentValue(payload?.outputText)
+  if (topLevelContent) return topLevelContent
+
+  if (typeof payload?.text === 'string') return payload.text
 
   return ''
 }
@@ -33,7 +89,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   async chatStream(messages: ChatMessage[], onData: (chunk: string) => void): Promise<ChatStreamResult> {
-    const parseUsage = (payload: any): LLMUsage | undefined => {
+    const parseUsage = (payload: OpenAIResponsePayload | null): LLMUsage | undefined => {
       const usage = payload?.usage || payload?.data?.usage
       if (!usage) return undefined
 
@@ -76,9 +132,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     const contentType = (response.headers.get('content-type') || '').toLowerCase()
     if (!contentType.includes('text/event-stream')) {
       const bodyText = await response.text()
-      let parsed: any = null
+      let parsed: OpenAIResponsePayload | null = null
       try {
-        parsed = bodyText ? JSON.parse(bodyText) : null
+        parsed = bodyText ? (JSON.parse(bodyText) as OpenAIResponsePayload) : null
       } catch {
         parsed = null
       }
@@ -121,7 +177,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           if (!raw || raw === '[DONE]') continue
 
           try {
-            const data = JSON.parse(raw)
+            const data = JSON.parse(raw) as OpenAIResponsePayload
             streamUsage = parseUsage(data) || streamUsage
             const content = extractContentFromChoice(data)
             if (content) {
@@ -129,7 +185,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               onData(content)
             }
           } catch (e) {
-            console.error('Error parsing SSE chunk:', e)
+            if (raw && raw !== '[DONE]') {
+              emittedChunks++
+              onData(raw)
+            } else {
+              console.error('Error parsing SSE chunk:', e)
+            }
           }
         }
       }
@@ -141,12 +202,17 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       try {
         const raw = buffer.trim().replace(/^data:\s?/, '')
         if (raw && raw !== '[DONE]') {
-          const data = JSON.parse(raw)
-          streamUsage = parseUsage(data) || streamUsage
-          const content = extractContentFromChoice(data)
-          if (content) {
+          try {
+            const data = JSON.parse(raw) as OpenAIResponsePayload
+            streamUsage = parseUsage(data) || streamUsage
+            const content = extractContentFromChoice(data)
+            if (content) {
+              emittedChunks++
+              onData(content)
+            }
+          } catch {
             emittedChunks++
-            onData(content)
+            onData(raw)
           }
         }
       } catch {}
@@ -176,9 +242,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
 
     const fallbackText = await fallbackResponse.text()
-    let fallbackJson: any = null
+    let fallbackJson: OpenAIResponsePayload | null = null
     try {
-      fallbackJson = fallbackText ? JSON.parse(fallbackText) : null
+      fallbackJson = fallbackText ? (JSON.parse(fallbackText) as OpenAIResponsePayload) : null
     } catch {
       fallbackJson = null
     }

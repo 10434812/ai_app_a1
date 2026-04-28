@@ -34,15 +34,16 @@ const parsePayload = (raw: string): ExportableConfigRow[] => {
     throw new Error('Invalid config export file: missing rows array')
   }
 
-  return payload.rows.map((row: any) => {
-    if (!row || typeof row.key !== 'string') {
+  return payload.rows.map((row: unknown) => {
+    const normalized = row as Partial<ExportableConfigRow> | null
+    if (!normalized || typeof normalized.key !== 'string') {
       throw new Error('Invalid config export file: row.key must be a string')
     }
 
     return {
-      key: row.key,
-      value: row.value === null || row.value === undefined ? null : String(row.value),
-      description: row.description === null || row.description === undefined ? null : String(row.description),
+      key: normalized.key,
+      value: normalized.value === null || normalized.value === undefined ? null : String(normalized.value),
+      description: normalized.description === null || normalized.description === undefined ? null : String(normalized.description),
     }
   })
 }
@@ -71,4 +72,3 @@ main()
   .finally(async () => {
     await sequelize.close()
   })
-

@@ -390,6 +390,7 @@
 import {ref, onMounted} from 'vue'
 import {archiveData, exportSystemConfig, getGeneralSettings, importSystemConfig, testWeChatPayConfig, updateGeneralSettings} from '../api/admin'
 import type {ConfigExportPayload, GeneralSettings, WeChatPayTestResult} from '../api/admin'
+import {extractThrownErrorMessage} from '../utils/apiError'
 
 type BaseSystemSettings = Pick<
   GeneralSettings,
@@ -535,17 +536,12 @@ const runWeChatPayTest = async () => {
   testingWeChatPay.value = true
   try {
     wechatPayTestResult.value = await testWeChatPayConfig(settings.value)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to test wechat pay settings:', error)
-    const message =
-      error?.response?.data?.error?.message ||
-      error?.response?.data?.error ||
-      error?.message ||
-      '微信支付配置测试失败'
     wechatPayTestResult.value = {
       success: false,
       mode: settings.value.WECHAT_PAY_MOCK_MODE === 'true' ? 'mock' : 'live',
-      message,
+      message: extractThrownErrorMessage(error, '微信支付配置测试失败'),
       missing: [],
     }
   } finally {

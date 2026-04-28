@@ -101,18 +101,11 @@
 import {ref, computed, onMounted} from 'vue'
 import {deleteUser, getUsers, toggleUserStatus} from '../api/admin'
 import type {User} from '../api/admin'
+import {extractThrownErrorMessage} from '../utils/apiError'
 
 const users = ref<User[]>([])
 const searchQuery = ref('')
 const pendingUserActionId = ref<string | null>(null)
-
-const extractAdminErrorMessage = (error: any, fallback: string) => {
-  const payload = error?.response?.data
-  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) return payload.error.message.trim()
-  if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error.trim()
-  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim()
-  return fallback
-}
 
 const filteredUsers = computed(() => {
   if (!searchQuery.value) return users.value
@@ -137,7 +130,7 @@ const toggleStatus = async (user: User) => {
       users.value[index] = {...users.value[index], ...updatedUser}
     }
   } catch (error) {
-    alert(extractAdminErrorMessage(error, '更新用户状态失败'))
+    alert(extractThrownErrorMessage(error, '更新用户状态失败'))
   } finally {
     pendingUserActionId.value = null
   }
@@ -152,7 +145,7 @@ const removeUser = async (user: User) => {
     await deleteUser(user.id)
     users.value = users.value.filter((u) => u.id !== user.id)
   } catch (error) {
-    alert(extractAdminErrorMessage(error, '删除用户失败'))
+    alert(extractThrownErrorMessage(error, '删除用户失败'))
   } finally {
     pendingUserActionId.value = null
   }

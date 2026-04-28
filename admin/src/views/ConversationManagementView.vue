@@ -138,6 +138,7 @@
 import {computed, ref, onMounted} from 'vue'
 import {batchDeleteConversationLogs, deleteConversationLog, getRecentQuestions} from '../api/admin'
 import type {RecentQuestion} from '../api/admin'
+import {extractThrownErrorMessage} from '../utils/apiError'
 
 const questions = ref<RecentQuestion[]>([])
 const loading = ref(false)
@@ -151,14 +152,6 @@ const visibleConversationIds = computed(() => Array.from(new Set(questions.value
 const allVisibleSelected = computed(
   () => visibleConversationIds.value.length > 0 && visibleConversationIds.value.every((id) => selectedConversationSet.value.has(id)),
 )
-
-const extractAdminErrorMessage = (error: any, fallback: string) => {
-  const payload = error?.response?.data
-  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) return payload.error.message.trim()
-  if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error.trim()
-  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim()
-  return fallback
-}
 
 const fetchQuestions = async () => {
   loading.value = true
@@ -218,7 +211,7 @@ const handleDeleteConversation = async (conversationId: string) => {
     questions.value = questions.value.filter((item) => item.conversationId !== conversationId)
     selectedConversationIds.value = selectedConversationIds.value.filter((id) => id !== conversationId)
   } catch (error) {
-    alert(extractAdminErrorMessage(error, '删除对话日志失败'))
+    alert(extractThrownErrorMessage(error, '删除对话日志失败'))
   } finally {
     deletingConversationId.value = null
   }
@@ -238,7 +231,7 @@ const handleBatchDeleteConversations = async () => {
     questions.value = questions.value.filter((item) => !toDelete.has(item.conversationId))
     selectedConversationIds.value = []
   } catch (error) {
-    alert(extractAdminErrorMessage(error, '批量删除对话日志失败'))
+    alert(extractThrownErrorMessage(error, '批量删除对话日志失败'))
   } finally {
     batchDeleting.value = false
   }

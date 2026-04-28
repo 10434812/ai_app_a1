@@ -85,7 +85,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  if (!authStore.user && authStore.token) {
+  if (!authStore.user) {
     await authStore.fetchUser()
   }
 

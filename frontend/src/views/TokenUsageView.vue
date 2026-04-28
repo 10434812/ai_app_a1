@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getTokenStats, getTokenHistory, getTokenTrend, exportTokenHistory, type TokenRecord, type TokenStats } from '../api/token'
+import {
+  getTokenStats,
+  getTokenHistory,
+  getTokenTrend,
+  exportTokenHistory,
+  type TokenRecord,
+  type TokenStats,
+  type TokenTrendItem,
+} from '../api/token'
 import KpiCard from '../components/token-usage/KpiCard.vue'
 import UsageTable from '../components/token-usage/UsageTable.vue'
 import ExportPanel from '../components/token-usage/ExportPanel.vue'
@@ -25,6 +33,14 @@ const historyLoading = ref(false)
 const chartSectionRef = ref<HTMLElement | null>(null)
 const chartsVisible = ref(false)
 
+interface TokenHistoryFilterPayload {
+  model?: string
+  dateRange?: {
+    start?: string
+    end?: string
+  }
+}
+
 // Params
 const currentPage = ref(Number(route.query.page) || 1)
 const pageSize = ref(Number(route.query.pageSize) || 20)
@@ -38,6 +54,8 @@ const historyFilters = ref<{
   start: (route.query.start as string) || '',
   end: (route.query.end as string) || '',
 })
+const sortField = ref<'createdAt' | 'amount'>('createdAt')
+const sortDirection = ref<'asc' | 'desc'>('desc')
 
 // Derived Data
 const trendValues = computed(() => tokenTrend.value.map(t => t.value))
@@ -50,6 +68,16 @@ const modelShareData = computed(() => {
     }
   })
   return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
+})
+
+const sortedTokenHistory = computed(() => {
+  const list = [...tokenHistory.value]
+  list.sort((a, b) => {
+    const aValue = sortField.value === 'amount' ? Number(a.amount || 0) : new Date(a.createdAt).getTime()
+    const bValue = sortField.value === 'amount' ? Number(b.amount || 0) : new Date(b.createdAt).getTime()
+    return sortDirection.value === 'asc' ? aValue - bValue : bValue - aValue
+  })
+  return list
 })
 
 const ringChange = computed(() => {
@@ -121,7 +149,7 @@ async function loadAll() {
     getTokenHistory(currentPage.value, pageSize.value, historyFilters.value)
   ])
   tokenStats.value = stats
-  tokenTrend.value = trend.map((t: any) => ({ date: t.date, value: Number(t.count) }))
+  tokenTrend.value = trend.map((t: TokenTrendItem) => ({date: t.date, value: Number(t.count)}))
   tokenHistory.value = history.records
   tokenHistoryTotal.value = history.total
 }
@@ -173,7 +201,7 @@ async function handleExport(format: 'csv' | 'excel') {
   }
 }
 
-function handleFilter(filters: any) {
+function handleFilter(filters: TokenHistoryFilterPayload) {
   historyFilters.value = {
     model: filters?.model || '',
     start: filters?.dateRange?.start || '',
@@ -185,12 +213,25 @@ function handleFilter(filters: any) {
 }
 
 function handleSort(field: string) {
-  console.log('Sort:', field)
+  const nextField = field === 'amount' ? 'amount' : 'createdAt'
+  if (sortField.value === nextField) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+    return
+  }
+  sortField.value = nextField
+  sortDirection.value = nextField === 'createdAt' ? 'desc' : 'asc'
 }
 
 function handleExportRow(row: TokenRecord) {
-  // Mock single row export
-  const csvContent = `data:text/csv;charset=utf-8,Time,User,Model,Amount\n${row.createdAt},Current User,${row.model || '-'},${row.amount}`
+  const escapeCell = (value: unknown) => {
+    const normalized = String(value ?? '')
+    const safeValue = /^[=+\-@]/.test(normalized) ? `'${normalized}` : normalized
+    return `"${safeValue.replace(/"/g, '""')}"`
+  }
+  const csvContent = `data:text/csv;charset=utf-8,${[
+    ['Time', 'User', 'Model', 'Amount'],
+    [row.createdAt, 'Current User', row.model || '-', row.amount],
+  ].map((line) => line.map(escapeCell).join(',')).join('\n')}`
   const encodedUri = encodeURI(csvContent)
   const link = document.createElement("a")
   link.setAttribute("href", encodedUri)
@@ -298,8 +339,8 @@ function handleExportRow(row: TokenRecord) {
       </div>
 
       <!-- Table -->
-      <UsageTable 
-        :data="tokenHistory" 
+        <UsageTable 
+          :data="sortedTokenHistory" 
         :total="tokenHistoryTotal"
         v-model:page="currentPage"
         v-model:page-size="pageSize"

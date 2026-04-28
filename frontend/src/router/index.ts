@@ -54,8 +54,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // Try to fetch user if token exists but user is null
-  if (authStore.token && !authStore.user) {
+  if (!authStore.user) {
     await authStore.fetchUser()
   }
 
@@ -63,14 +62,6 @@ router.beforeEach(async (to, from, next) => {
   if (to.matched.some(record => record.meta.requiresAuth)) {
     if (!authStore.isAuthenticated) {
       next('/login')
-      return
-    }
-  }
-
-  // Handle admin routes
-  if (to.matched.some(record => record.meta.requiresAdmin)) {
-    if (authStore.user?.role !== 'admin') {
-      next('/')
       return
     }
   }

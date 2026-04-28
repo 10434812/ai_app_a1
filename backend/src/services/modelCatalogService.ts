@@ -14,6 +14,13 @@ type PublicModelStatus = {
   baseURL: string | null
 }
 
+interface CustomModelConfig {
+  provider?: string
+  apiKey?: string
+  baseURL?: string
+  modelId?: string
+}
+
 const IMAGE_MODEL_STATUS_MAP: Record<
   string,
   {provider: 'aliyun' | 'zhipu' | 'siliconflow'; apiKeyKey: string; modelKey: string; fallbackModel: string}
@@ -86,10 +93,17 @@ export const getPublicModelStatusMap = async (): Promise<Record<string, PublicMo
     ]),
   )
 
-  const [rows, statusMap] = await Promise.all([
-    SystemConfig.findAll({where: {key: relevantKeys}}),
-    getModelStatusMap(),
-  ])
+  let rows: Array<SystemConfig> = []
+  let statusMap: Record<string, boolean> = {}
+  try {
+    ;[rows, statusMap] = await Promise.all([
+      SystemConfig.findAll({where: {key: relevantKeys}}),
+      getModelStatusMap(),
+    ])
+  } catch {
+    rows = []
+    statusMap = {}
+  }
 
   const configMap = new Map(rows.map((row) => [row.key, row.value || '']))
   const result: Record<string, PublicModelStatus> = {}
@@ -113,11 +127,11 @@ export const getPublicModelStatusMap = async (): Promise<Record<string, PublicMo
     }
 
     const customConfigRaw = configMap.get(`model_config:${model.id}`)
-    let customConfig: any = null
+    let customConfig: CustomModelConfig | null = null
 
     if (customConfigRaw) {
       try {
-        customConfig = JSON.parse(customConfigRaw)
+        customConfig = JSON.parse(customConfigRaw) as CustomModelConfig
       } catch {
         customConfig = null
       }

@@ -134,7 +134,7 @@
 
 <script setup lang="ts">
 import {ref, onMounted, type Component} from 'vue'
-import {Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement} from 'chart.js'
+import {Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement, type ChartData} from 'chart.js'
 import {Bar, Doughnut} from 'vue-chartjs'
 import {getMetrics, getCostDashboard, getRetentionStats, getRecentQuestions, getObservabilitySummary} from '../api/admin'
 import type {SystemMetrics, CostDashboard, RetentionStats, RecentQuestion, ObservabilitySummary} from '../api/admin'
@@ -179,8 +179,8 @@ const observability = ref<ObservabilitySummary>({
 const recentQuestions = ref<RecentQuestion[]>([])
 
 // Chart Data State
-const costChartData = ref<any>(null)
-const modelChartData = ref<any>(null)
+const costChartData = ref<ChartData<'bar'> | null>(null)
+const modelChartData = ref<ChartData<'doughnut'> | null>(null)
 
 interface StatItem {
   title: string

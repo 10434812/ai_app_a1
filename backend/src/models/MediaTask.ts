@@ -10,6 +10,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {User} from './User.ts'
 
 export type MediaTaskType = 'image' | 'video'
@@ -39,7 +40,7 @@ export class MediaTask extends Model {
   declare userId: string
 
   @BelongsTo(() => User)
-  declare user?: User
+  declare user?: NonAttribute<User>
 
   @Column({
     type: DataType.ENUM('image', 'video'),
@@ -154,4 +155,3 @@ export class MediaTask extends Model {
   })
   declare meta: string | null
 }
-

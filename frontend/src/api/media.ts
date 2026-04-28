@@ -1,5 +1,4 @@
-import {API_BASE_URL} from '../constants/config'
-import {useAuthStore} from '../stores/auth'
+import {requestJson} from '../utils/http'
 
 export interface ImageOptions {
   enabled: boolean
@@ -47,26 +46,8 @@ export interface MediaTaskResult {
   result?: ImageGenerateResult
 }
 
-const getAuthHeaders = () => {
-  const authStore = useAuthStore()
-  if (!authStore.token) throw new Error('请先登录后再生成图片')
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${authStore.token}`,
-  }
-}
-
-const parseApiError = (data: any, fallback: string) => {
-  if (data?.error?.message) return String(data.error.message)
-  if (typeof data?.error === 'string') return data.error
-  return fallback
-}
-
 export const fetchImageOptions = async (): Promise<ImageOptions> => {
-  const res = await fetch(`${API_BASE_URL}/api/media/image/options`)
-  if (!res.ok) throw new Error('获取图片生成配置失败')
-  return res.json()
+  return requestJson<ImageOptions>('/api/media/image/options', {}, '获取图片生成配置失败')
 }
 
 export const createImageTask = async (payload: {
@@ -77,23 +58,14 @@ export const createImageTask = async (payload: {
   n: number
   modelId?: string
 }) => {
-  const res = await fetch(`${API_BASE_URL}/api/media/image/generate`, {
+  return requestJson<{success: boolean; task: MediaTaskResult}>('/api/media/image/generate', {
     method: 'POST',
-    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(parseApiError(data, '图片任务创建失败'))
-  return data as {success: boolean; task: MediaTaskResult}
+  }, '图片任务创建失败')
 }
 
 export const getMediaTask = async (taskId: string) => {
-  const res = await fetch(`${API_BASE_URL}/api/media/tasks/${taskId}`, {
-    headers: getAuthHeaders(),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(parseApiError(data, '获取任务状态失败'))
-  return data as {success: boolean; task: MediaTaskResult}
+  return requestJson<{success: boolean; task: MediaTaskResult}>(`/api/media/tasks/${taskId}`, {}, '获取任务状态失败')
 }
 
 export const waitForImageTask = async (

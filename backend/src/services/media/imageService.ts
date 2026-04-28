@@ -22,7 +22,7 @@ interface GenerateImageResult {
     completionTokens?: number
     totalTokens?: number
   }
-  rawResponse?: any
+  rawResponse?: unknown
 }
 
 interface ImageSettings {
@@ -89,7 +89,57 @@ const withTimeout = async (url: string, options: RequestInit, timeoutMs = 45000)
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const extractImageUrls = (payload: any): string[] => {
+interface ImageDataItem {
+  url?: string
+  b64_json?: string
+}
+
+interface ImageOutputItem {
+  url?: string
+  base64?: string
+}
+
+interface ImageUsagePayload {
+  prompt_tokens?: number
+  input_tokens?: number
+  completion_tokens?: number
+  output_tokens?: number
+  total_tokens?: number
+}
+
+interface ImageApiPayload {
+  id?: string
+  request_id?: string
+  requestId?: string
+  raw?: string
+  message?: string
+  code?: string
+  error?: {
+    message?: string
+  }
+  usage?: ImageUsagePayload
+  data?: Array<ImageDataItem> & {usage?: ImageUsagePayload}
+  output?: {
+    image_url?: string
+    task_id?: string
+    taskId?: string
+    task_status?: string
+    message?: string
+    results?: ImageOutputItem[]
+    usage?: ImageUsagePayload
+  }
+  images?: Array<{url?: string}>
+}
+
+const parseJsonResponse = (bodyText: string): ImageApiPayload => {
+  try {
+    return bodyText ? (JSON.parse(bodyText) as ImageApiPayload) : {}
+  } catch {
+    return {raw: bodyText}
+  }
+}
+
+const extractImageUrls = (payload: ImageApiPayload): string[] => {
   const urls: string[] = []
 
   const pushMaybe = (value?: string) => {
@@ -100,14 +150,14 @@ const extractImageUrls = (payload: any): string[] => {
   }
 
   if (Array.isArray(payload?.data)) {
-    payload.data.forEach((item: any) => {
+    payload.data.forEach((item) => {
       pushMaybe(item?.url)
       if (item?.b64_json) pushMaybe(`data:image/png;base64,${item.b64_json}`)
     })
   }
 
   if (Array.isArray(payload?.output?.results)) {
-    payload.output.results.forEach((item: any) => {
+    payload.output.results.forEach((item) => {
       pushMaybe(item?.url)
       if (item?.base64) pushMaybe(`data:image/png;base64,${item.base64}`)
     })
@@ -120,7 +170,7 @@ const extractImageUrls = (payload: any): string[] => {
   return Array.from(new Set(urls))
 }
 
-const extractUsage = (payload: any) => {
+const extractUsage = (payload: ImageApiPayload) => {
   const usage = payload?.usage || payload?.data?.usage || payload?.output?.usage
   if (!usage) return undefined
 
@@ -206,12 +256,7 @@ const callOpenAICompatibleImageAPI = async (
   )
 
   const bodyText = await response.text()
-  let json: any = {}
-  try {
-    json = bodyText ? JSON.parse(bodyText) : {}
-  } catch {
-    json = {raw: bodyText}
-  }
+  const json = parseJsonResponse(bodyText)
 
   if (!response.ok) {
     throw new Error(`Image API error ${response.status}: ${json?.error?.message || json?.message || bodyText}`)
@@ -245,12 +290,7 @@ const callSiliconFlowImageAPI = async (
   )
 
   const bodyText = await response.text()
-  let json: any = {}
-  try {
-    json = bodyText ? JSON.parse(bodyText) : {}
-  } catch {
-    json = {raw: bodyText}
-  }
+  const json = parseJsonResponse(bodyText)
 
   if (!response.ok) {
     throw new Error(`SiliconFlow image API error ${response.status}: ${json?.error?.message || json?.message || bodyText}`)
@@ -259,7 +299,7 @@ const callSiliconFlowImageAPI = async (
   return {
     ...json,
     data: Array.isArray(json?.images)
-      ? json.images.map((item: any) => ({
+      ? json.images.map((item) => ({
           url: item?.url,
         }))
       : [],
@@ -293,12 +333,7 @@ const callAliyunImageAPI = async (apiKey: string, payload: {model: string; promp
   )
 
   const createText = await createResponse.text()
-  let createJson: any = {}
-  try {
-    createJson = createText ? JSON.parse(createText) : {}
-  } catch {
-    createJson = {raw: createText}
-  }
+  const createJson = parseJsonResponse(createText)
 
   if (!createResponse.ok) {
     throw new Error(
@@ -331,12 +366,7 @@ const callAliyunImageAPI = async (apiKey: string, payload: {model: string; promp
     )
 
     const taskText = await taskResponse.text()
-    let taskJson: any = {}
-    try {
-      taskJson = taskText ? JSON.parse(taskText) : {}
-    } catch {
-      taskJson = {raw: taskText}
-    }
+    const taskJson = parseJsonResponse(taskText)
 
     if (!taskResponse.ok) {
       throw new Error(
@@ -395,7 +425,7 @@ export const generateImage = async (input: GenerateImageInput): Promise<Generate
     throw new Error(`${provider} 图片 API Key 未配置，请到后台系统设置中填写。`)
   }
 
-  let raw: any
+  let raw: ImageApiPayload
   if (provider === 'aliyun') {
     raw = await callAliyunImageAPI(apiKey, {model, prompt, size, n})
   } else if (provider === 'siliconflow') {

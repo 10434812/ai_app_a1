@@ -10,6 +10,7 @@ import {
   IsUUID,
 } from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {User} from './User.ts'
 
 @Table({
@@ -49,7 +50,7 @@ export class VisitLog extends Model {
   declare userId: string | null
 
   @BelongsTo(() => User)
-  declare user?: User
+  declare user?: NonAttribute<User>
 
   @Column({
     type: DataType.STRING(128),

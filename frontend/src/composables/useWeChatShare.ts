@@ -1,7 +1,6 @@
 import {ref} from 'vue'
-import axios from 'axios'
 import wx from 'weixin-js-sdk'
-import {API_BASE_URL} from '@/constants/config'
+import {requestJson} from '@/utils/http'
 
 export interface WeChatShareData {
   title: string
@@ -10,7 +9,31 @@ export interface WeChatShareData {
   imgUrl: string
 }
 
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+interface WeChatApiSupportResponse {
+  checkResult?: Record<string, boolean>
+}
+
+interface WeChatConfigError {
+  errMsg?: string
+  message?: string
+}
+
+declare global {
+  interface Window {
+    MSStream?: unknown
+  }
+}
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message.trim()) return error.message.trim()
+  if (typeof error === 'string' && error.trim()) return error.trim()
+  const normalized = error as WeChatConfigError | null | undefined
+  if (typeof normalized?.message === 'string' && normalized.message.trim()) return normalized.message.trim()
+  if (typeof normalized?.errMsg === 'string' && normalized.errMsg.trim()) return normalized.errMsg.trim()
+  return fallback
+}
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
 const entryUrl = decodeURIComponent(window.location.href.split('#')[0])
 const isWeChatBrowser = /micromessenger/i.test(navigator.userAgent)
 
@@ -24,11 +47,10 @@ let configVersion = 0
 
 async function reportShareEvent(type: string, url: string) {
   try {
-    await axios.post(`${API_BASE_URL}/api/wechat/callback`, {
-      type,
-      url,
-      status: 'success',
-    })
+    await requestJson('/api/wechat/callback', {
+      method: 'POST',
+      body: JSON.stringify({type, url, status: 'success'}),
+    }, '上报分享事件失败')
     shareStatus.value = 'success'
   } catch (error) {
     console.error('Failed to report share event', error)
@@ -36,8 +58,14 @@ async function reportShareEvent(type: string, url: string) {
 }
 
 async function getSignature(url: string) {
-  const res = await axios.post(`${API_BASE_URL}/api/wechat/signature`, {url})
-  return res.data
+  return requestJson<{appId: string; timestamp: number; nonceStr: string; signature: string}>(
+    '/api/wechat/signature',
+    {
+      method: 'POST',
+      body: JSON.stringify({url}),
+    },
+    '获取微信签名失败',
+  )
 }
 
 function inspectVoiceApiSupport() {
@@ -50,7 +78,7 @@ function inspectVoiceApiSupport() {
 
     wx.checkJsApi({
       jsApiList: ['startRecord', 'stopRecord', 'translateVoice'],
-      success: (res: any) => {
+      success: (res: WeChatApiSupportResponse) => {
         const checkResult = res?.checkResult || {}
         voiceApiSupported.value = Boolean(
           checkResult.startRecord !== false &&
@@ -100,7 +128,7 @@ async function configAndSign(url: string) {
       }
     })
 
-    wx.error((err: any) => {
+    wx.error((err: WeChatConfigError) => {
       if (currentVersion !== configVersion) return
       console.error('[WeChat] Config Error:', err)
       reject(err)
@@ -124,8 +152,9 @@ async function initWeChat() {
 
       try {
         await configAndSign(urlToSign)
-      } catch (err: any) {
-        if (!isRetrying.value && (err?.errMsg?.includes('signature') || err?.errMsg?.includes('config:fail'))) {
+      } catch (err: unknown) {
+        const errMsg = getErrorMessage(err, '')
+        if (!isRetrying.value && (errMsg.includes('signature') || errMsg.includes('config:fail'))) {
           isRetrying.value = true
           const retryUrl = urlToSign === entryUrl ? currentUrl : entryUrl
           if (retryUrl !== urlToSign) {
@@ -135,10 +164,10 @@ async function initWeChat() {
         }
         throw err
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to init WeChat JSSDK:', err)
       shareStatus.value = 'error'
-      errorMsg.value = err?.message || err?.errMsg || (typeof err === 'string' ? err : '微信能力初始化失败')
+      errorMsg.value = getErrorMessage(err, '微信能力初始化失败')
       voiceApiSupported.value = false
       throw err
     } finally {

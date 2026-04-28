@@ -1,19 +1,11 @@
-import axios, {InternalAxiosRequestConfig} from 'axios'
+import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api/admin',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-})
-
-// Add auth token interceptor
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('admin_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
 })
 
 export interface SystemMetrics {
@@ -71,6 +63,13 @@ export interface UserPortrait {
   totalQuestions: number
   tags: string[]
   lastActive: string
+}
+
+export interface UserPortraitResponse {
+  items: UserPortrait[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export interface RecentQuestion {
@@ -358,6 +357,17 @@ export interface WeChatPayTestResult {
   merchantSerialNo?: string
 }
 
+export interface ArchiveDataResult {
+  success: boolean
+  dryRun: boolean
+  days: number
+  archived?: {
+    conversations?: number
+    messages?: number
+    logs?: number
+  }
+}
+
 export const getModels = async (): Promise<ModelConfig[]> => {
   const response = await api.get('/models')
   return response.data
@@ -368,7 +378,7 @@ export const toggleModelStatus = async (id: string): Promise<ModelConfig> => {
   return response.data
 }
 
-export const updateModelConfig = async (id: string, config: any): Promise<ModelConfig> => {
+export const updateModelConfig = async (id: string, config: Record<string, unknown>): Promise<ModelConfig> => {
   const response = await api.post(`/models/${id}/config`, config)
   return response.data
 }
@@ -378,8 +388,8 @@ export const getAnalysisStats = async (): Promise<AnalysisStats> => {
   return response.data
 }
 
-export const getUserPortraits = async (): Promise<UserPortrait[]> => {
-  const response = await api.get('/analysis/portraits')
+export const getUserPortraits = async (page = 1, pageSize = 50): Promise<UserPortraitResponse> => {
+  const response = await api.get('/analysis/portraits', {params: {page, pageSize}})
   return response.data
 }
 
@@ -528,7 +538,7 @@ export const exportTokensCsv = async (params: Record<string, string | number | u
   return response.data
 }
 
-export const archiveData = async (days: number, dryRun = true): Promise<any> => {
+export const archiveData = async (days: number, dryRun = true): Promise<ArchiveDataResult> => {
   const response = await api.post('/data/archive', {days, dryRun})
   return response.data
 }

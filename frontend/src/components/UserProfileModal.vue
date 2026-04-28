@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import {ref, onMounted, watch} from 'vue'
+import {ref, onMounted, onBeforeUnmount, watch} from 'vue'
 import {API_BASE_URL} from '../constants/config'
-import {useAuthStore} from '../stores/auth'
-import {getTokenStats, getTokenHistory, getTokenTrend, exportTokenHistory} from '../api/token'
+import {useAuthStore, type User} from '../stores/auth'
+import {
+  getTokenStats,
+  getTokenHistory,
+  getTokenTrend,
+  exportTokenHistory,
+  type TokenHistoryResponse,
+  type TokenRecord,
+  type TokenStats,
+  type TokenTrendItem,
+} from '../api/token'
 import TokenUsageChart from './TokenUsageChart.vue'
 import UserAvatar from './UserAvatar.vue'
 
@@ -17,13 +26,15 @@ const emit = defineEmits<{
 const authStore = useAuthStore()
 const customApiKey = ref('')
 const loading = ref(false)
-const activeTab = ref('profile')
+const activeTab = ref<'profile' | 'token'>('profile')
 const isDark = ref(document.documentElement.classList.contains('dark'))
+const dialogTitleId = 'user-profile-modal-title'
+let themeObserver: MutationObserver | null = null
 
 // Token Data
-const tokenStats = ref<any>(null)
-const tokenHistory = ref<any[]>([])
-const tokenTrend = ref<any[]>([])
+const tokenStats = ref<TokenStats | null>(null)
+const tokenHistory = ref<TokenRecord[]>([])
+const tokenTrend = ref<TokenTrendItem[]>([])
 const historyPage = ref(1)
 const historyTotal = ref(0)
 const historyLoading = ref(false)
@@ -33,15 +44,18 @@ onMounted(() => {
   if (storedKey) customApiKey.value = storedKey
   if (props.isOpen) initData()
   
-  // Watch for dark mode changes
-  const observer = new MutationObserver((mutations) => {
+  themeObserver = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       if (mutation.attributeName === 'class') {
         isDark.value = document.documentElement.classList.contains('dark')
       }
     })
   })
-  observer.observe(document.documentElement, {attributes: true})
+  themeObserver.observe(document.documentElement, {attributes: true})
+})
+
+onBeforeUnmount(() => {
+  themeObserver?.disconnect()
 })
 
 watch(() => props.isOpen, (val) => {
@@ -61,10 +75,10 @@ async function fetchUserStats() {
   if (!authStore.isAuthenticated) return
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      headers: {Authorization: `Bearer ${authStore.token}`},
+      credentials: 'include',
     })
     if (res.ok) {
-      const data = await res.json()
+      const data = (await res.json()) as {user: User}
       authStore.user = data.user
     }
   } catch (e) {
@@ -75,10 +89,10 @@ async function fetchUserStats() {
 async function fetchTokenData() {
   loading.value = true
   try {
-    const [stats, trend, history] = await Promise.all([
+    const [stats, trend, history]: [TokenStats, TokenTrendItem[], TokenHistoryResponse] = await Promise.all([
       getTokenStats(),
       getTokenTrend(30),
-      getTokenHistory(1, 10)
+      getTokenHistory(1, 10),
     ])
     tokenStats.value = stats
     tokenTrend.value = trend
@@ -96,7 +110,7 @@ async function loadHistoryPage(page: number) {
   if (page < 1) return
   historyLoading.value = true
   try {
-    const res = await getTokenHistory(page, 10)
+    const res: TokenHistoryResponse = await getTokenHistory(page, 10)
     tokenHistory.value = res.records
     historyPage.value = page
     historyTotal.value = res.total
@@ -144,7 +158,12 @@ function formatDate(dateStr: string) {
 </script>
 
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog">
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    :aria-labelledby="dialogTitleId">
     <!-- Backdrop -->
     <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" @click="$emit('close')"></div>
 
@@ -154,13 +173,17 @@ function formatDate(dateStr: string) {
       <!-- Header -->
       <div class="p-6 pb-0 flex-none">
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <h2 :id="dialogTitleId" class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             </div>
             个人中心
           </h2>
-          <button @click="$emit('close')" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors">
+          <button
+            @click="$emit('close')"
+            type="button"
+            aria-label="关闭个人中心"
+            class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -169,6 +192,8 @@ function formatDate(dateStr: string) {
         <div class="flex gap-6 border-b border-slate-100 dark:border-slate-700">
           <button 
             @click="activeTab = 'profile'"
+            type="button"
+            :aria-pressed="activeTab === 'profile'"
             class="pb-3 text-sm font-medium transition-colors relative"
             :class="activeTab === 'profile' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
           >
@@ -177,6 +202,8 @@ function formatDate(dateStr: string) {
           </button>
           <button 
             @click="activeTab = 'token'"
+            type="button"
+            :aria-pressed="activeTab === 'token'"
             class="pb-3 text-sm font-medium transition-colors relative"
             :class="activeTab === 'token' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
           >
@@ -232,8 +259,8 @@ function formatDate(dateStr: string) {
             </h3>
             <p class="text-xs text-slate-500 mb-3">如果您有自己的 OpenAI/兼容 Key，可在此填入。系统将优先使用您的 Key。</p>
             <div class="flex gap-2">
-              <input v-model="customApiKey" type="password" placeholder="sk-..." class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-              <button @click="saveApiKey" class="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors">保存</button>
+              <input v-model="customApiKey" type="password" aria-label="自定义 API Key" placeholder="sk-..." class="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+              <button type="button" @click="saveApiKey" class="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors">保存</button>
             </div>
           </div>
         </div>

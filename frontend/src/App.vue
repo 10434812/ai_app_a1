@@ -16,10 +16,10 @@ const updateShare = async () => {
     const config = await res.json()
     
     setShareData({
-      title: config.wechat_share_title || 'AI 智能助手',
-      desc: config.wechat_share_desc || '汇聚全球顶尖大模型，为您提供智能问答服务',
+      title: config.wechat_share_title || '全智AI',
+      desc: config.wechat_share_desc || '一次访问，多种结果',
       link: config.wechat_share_link || window.location.href.split('#')[0],
-      imgUrl: config.wechat_share_img || window.location.origin + '/logo.png',
+      imgUrl: config.wechat_share_img || window.location.origin + '/logo.svg',
     })
   } catch (e) {
     console.error('Failed to update share data:', e)
@@ -29,7 +29,7 @@ const updateShare = async () => {
 onMounted(async () => {
   await initWeChat()
   updateShare()
-  trackVisit(route.path, authStore.token)
+  trackVisit(route.path)
 })
 
 watch(
@@ -39,7 +39,7 @@ watch(
     // iOS uses entry URL (also handled)
     await initWeChat()
     updateShare()
-    trackVisit(route.path, authStore.token)
+    trackVisit(route.path)
   },
 )
 </script>

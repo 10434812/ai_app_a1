@@ -1,4 +1,5 @@
 import {Table, Column, Model, DataType, ForeignKey, BelongsTo} from 'sequelize-typescript'
+import type {NonAttribute} from 'sequelize'
 import {User} from './User.ts'
 
 @Table({
@@ -31,7 +32,7 @@ export class TokenUsageRecord extends Model {
   declare userId: string
 
   @BelongsTo(() => User)
-  declare user: User
+  declare user: NonAttribute<User>
 
   @Column({
     type: DataType.INTEGER,

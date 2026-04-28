@@ -28,26 +28,35 @@ const parseStoredStatus = (value?: string | null): StoredModelStatus => {
 }
 
 export const getModelStatusMap = async (): Promise<Record<string, boolean>> => {
-  const keys = ALL_MODELS.map((model) => buildStatusKey(model.id))
-  const rows = await SystemConfig.findAll({where: {key: keys}})
-
-  const stored = new Map(rows.map((row) => [row.key, row.value]))
   const statusMap: Record<string, boolean> = {}
+  try {
+    const keys = ALL_MODELS.map((model) => buildStatusKey(model.id))
+    const rows = await SystemConfig.findAll({where: {key: keys}})
+    const stored = new Map(rows.map((row) => [row.key, row.value]))
 
-  for (const model of ALL_MODELS) {
-    const key = buildStatusKey(model.id)
-    const parsed = parseStoredStatus(stored.get(key))
-    statusMap[model.id] = parsed.isActive !== false
+    for (const model of ALL_MODELS) {
+      const key = buildStatusKey(model.id)
+      const parsed = parseStoredStatus(stored.get(key))
+      statusMap[model.id] = parsed.isActive !== false
+    }
+    return statusMap
+  } catch {
+    for (const model of ALL_MODELS) {
+      statusMap[model.id] = true
+    }
+    return statusMap
   }
-
-  return statusMap
 }
 
 export const isModelActive = async (modelId: string): Promise<boolean> => {
-  const key = buildStatusKey(modelId)
-  const row = await SystemConfig.findByPk(key)
-  const parsed = parseStoredStatus(row?.value)
-  return parsed.isActive !== false
+  try {
+    const key = buildStatusKey(modelId)
+    const row = await SystemConfig.findByPk(key)
+    const parsed = parseStoredStatus(row?.value)
+    return parsed.isActive !== false
+  } catch {
+    return true
+  }
 }
 
 export const setModelActive = async (modelId: string, isActive: boolean) => {

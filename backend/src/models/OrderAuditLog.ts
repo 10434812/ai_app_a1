@@ -10,6 +10,7 @@ import {
   IsUUID,
 } from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
+import type {NonAttribute} from 'sequelize'
 import {Order} from './Order.ts'
 import {User} from './User.ts'
 
@@ -46,7 +47,7 @@ export class OrderAuditLog extends Model {
   declare orderId: string
 
   @BelongsTo(() => Order)
-  declare order: Order
+  declare order: NonAttribute<Order>
 
   @ForeignKey(() => User)
   @Column({
@@ -56,7 +57,7 @@ export class OrderAuditLog extends Model {
   declare actorUserId: string | null
 
   @BelongsTo(() => User)
-  declare actorUser?: User
+  declare actorUser?: NonAttribute<User>
 
   @Column({
     type: DataType.STRING(64),

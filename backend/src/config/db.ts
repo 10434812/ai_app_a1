@@ -90,18 +90,23 @@ export const connectDB = async (options?: {skipMigrations?: boolean}) => {
     await ensureDatabaseExists()
     await sequelize.authenticate()
     console.log('Database connected successfully.')
-    const isProduction = process.env.NODE_ENV === 'production'
-    const enableAutoAlter = process.env.DB_AUTO_ALTER === 'true'
-    if (isProduction || !enableAutoAlter) {
-      // Keep sync non-destructive by default to avoid runaway index creation in shared DBs.
-      await sequelize.sync()
+
+    const shouldSyncModels = process.env.DB_ENABLE_SYNC !== 'false'
+    if (shouldSyncModels) {
+      const enableAutoAlter = process.env.DB_AUTO_ALTER === 'true'
+      if (enableAutoAlter) {
+        await sequelize.sync({alter: true})
+      } else {
+        await sequelize.sync()
+      }
+      console.log('Database synced via sequelize.sync().')
     } else {
-      await sequelize.sync({alter: true})
+      console.log('Database sync skipped by DB_ENABLE_SYNC=false.')
     }
+
     if (!options?.skipMigrations) {
       await runMigrations(sequelize)
     }
-    console.log('Database synced.')
     await seedAdmin()
   } catch (error) {
     console.error('Unable to connect to the database:', error)

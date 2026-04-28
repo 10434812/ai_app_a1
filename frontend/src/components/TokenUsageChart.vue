@@ -8,7 +8,9 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  type ScriptableContext,
+  type TooltipItem
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import { computed } from 'vue'
@@ -34,12 +36,12 @@ const chartData = computed(() => ({
   datasets: [
     {
       label: 'Token 消耗',
-      backgroundColor: (context: any) => {
-        const ctx = context.chart.ctx;
-        const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.5)');
-        gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
-        return gradient;
+      backgroundColor: (context: ScriptableContext<'line'>) => {
+        const ctx = context.chart.ctx
+        const gradient = ctx.createLinearGradient(0, 0, 0, 200)
+        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.5)')
+        gradient.addColorStop(1, 'rgba(99, 102, 241, 0)')
+        return gradient
       },
       borderColor: '#6366f1',
       borderWidth: 2,
@@ -72,7 +74,7 @@ const chartOptions = computed(() => ({
       padding: 10,
       displayColors: false,
       callbacks: {
-        label: (context: any) => `${context.parsed.y} Tokens`
+        label: (context: TooltipItem<'line'>) => `${context.parsed.y} Tokens`
       }
     }
   },
