@@ -1,1 +1,36 @@
+# macOS
 .DS_Store
+**/.DS_Store
+
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+admin/.env
+
+# Dependency installs
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+coverage/
+**/coverage/
+*.tsbuildinfo
+
+# Logs and runtime artifacts
+logs/
+**/logs/
+*.log
+
+# Local data / exports / caches
+mysql_data/
+**/mysql_data/
+ykb-backend/image/
+ukb_5zixi_com_2026-04-27_18-20-49_mysql_data_6SFUn/
+.tmp/
+tmp/
+cache/
