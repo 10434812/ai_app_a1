@@ -1,17 +1,16 @@
 const USER_TABLE = 'users';
 const MEDIA_TASK_TABLE = 'media_tasks';
-const hasIndex = async (sequelize, tableName, indexName, transaction) => {
+const hasIndex = async (sequelize, tableName, indexName) => {
     const [rows] = await sequelize.query(`SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1;`, {
         replacements: [tableName, indexName],
-        transaction,
     });
     return Array.isArray(rows) && rows.length > 0;
 };
 const migration = {
     id: '202603030004_add_rbac_and_media_tasks',
     description: 'Expand user roles for RBAC and create media_tasks table',
-    up: async (sequelize, transaction) => {
-        await sequelize.query(`ALTER TABLE \`${USER_TABLE}\` MODIFY COLUMN \`role\` ENUM('user','admin','super_admin','ops','finance','support') NOT NULL DEFAULT 'user';`, { transaction });
+    up: async (sequelize) => {
+        await sequelize.query(`ALTER TABLE \`${USER_TABLE}\` MODIFY COLUMN \`role\` ENUM('user','admin','super_admin','ops','finance','support') NOT NULL DEFAULT 'user';`);
         await sequelize.query(`CREATE TABLE IF NOT EXISTS \`${MEDIA_TASK_TABLE}\` (
         \`id\` CHAR(36) NOT NULL PRIMARY KEY,
         \`userId\` CHAR(36) NOT NULL,
@@ -35,20 +34,20 @@ const migration = {
         \`meta\` TEXT NULL,
         \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`, { transaction });
-        if (!(await hasIndex(sequelize, MEDIA_TASK_TABLE, 'idx_media_tasks_status_next_retry', transaction))) {
-            await sequelize.query(`CREATE INDEX \`idx_media_tasks_status_next_retry\` ON \`${MEDIA_TASK_TABLE}\` (\`status\`, \`nextRetryAt\`);`, { transaction });
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+        if (!(await hasIndex(sequelize, MEDIA_TASK_TABLE, 'idx_media_tasks_status_next_retry'))) {
+            await sequelize.query(`CREATE INDEX \`idx_media_tasks_status_next_retry\` ON \`${MEDIA_TASK_TABLE}\` (\`status\`, \`nextRetryAt\`);`);
         }
-        if (!(await hasIndex(sequelize, MEDIA_TASK_TABLE, 'idx_media_tasks_user_created_at', transaction))) {
-            await sequelize.query(`CREATE INDEX \`idx_media_tasks_user_created_at\` ON \`${MEDIA_TASK_TABLE}\` (\`userId\`, \`createdAt\`);`, { transaction });
+        if (!(await hasIndex(sequelize, MEDIA_TASK_TABLE, 'idx_media_tasks_user_created_at'))) {
+            await sequelize.query(`CREATE INDEX \`idx_media_tasks_user_created_at\` ON \`${MEDIA_TASK_TABLE}\` (\`userId\`, \`createdAt\`);`);
         }
-        if (!(await hasIndex(sequelize, MEDIA_TASK_TABLE, 'idx_media_tasks_type_status_created', transaction))) {
-            await sequelize.query(`CREATE INDEX \`idx_media_tasks_type_status_created\` ON \`${MEDIA_TASK_TABLE}\` (\`type\`, \`status\`, \`createdAt\`);`, { transaction });
+        if (!(await hasIndex(sequelize, MEDIA_TASK_TABLE, 'idx_media_tasks_type_status_created'))) {
+            await sequelize.query(`CREATE INDEX \`idx_media_tasks_type_status_created\` ON \`${MEDIA_TASK_TABLE}\` (\`type\`, \`status\`, \`createdAt\`);`);
         }
     },
-    down: async (sequelize, transaction) => {
-        await sequelize.query(`DROP TABLE IF EXISTS \`${MEDIA_TASK_TABLE}\`;`, { transaction });
-        await sequelize.query(`ALTER TABLE \`${USER_TABLE}\` MODIFY COLUMN \`role\` ENUM('user','admin') NOT NULL DEFAULT 'user';`, { transaction });
+    down: async (sequelize) => {
+        await sequelize.query(`DROP TABLE IF EXISTS \`${MEDIA_TASK_TABLE}\`;`);
+        await sequelize.query(`ALTER TABLE \`${USER_TABLE}\` MODIFY COLUMN \`role\` ENUM('user','admin') NOT NULL DEFAULT 'user';`);
     },
 };
 export default migration;

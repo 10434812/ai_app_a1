@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { connectDB, sequelize } from "../config/db.js";
-import { upsertSystemConfigs } from "../services/configSyncService.js";
+import { connectDB, sequelize } from '../config/db.js';
+import { upsertSystemConfigs } from '../services/configSyncService.js';
 const parseArgs = (argv) => {
     const options = {
         input: './config-export.json',
@@ -27,14 +27,13 @@ const parsePayload = (raw) => {
         throw new Error('Invalid config export file: missing rows array');
     }
     return payload.rows.map((row) => {
-        const normalized = row;
-        if (!normalized || typeof normalized.key !== 'string') {
+        if (!row || typeof row.key !== 'string') {
             throw new Error('Invalid config export file: row.key must be a string');
         }
         return {
-            key: normalized.key,
-            value: normalized.value === null || normalized.value === undefined ? null : String(normalized.value),
-            description: normalized.description === null || normalized.description === undefined ? null : String(normalized.description),
+            key: row.key,
+            value: row.value === null || row.value === undefined ? null : String(row.value),
+            description: row.description === null || row.description === undefined ? null : String(row.description),
         };
     });
 };

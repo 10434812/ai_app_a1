@@ -1,4 +1,4 @@
-import { MIGRATIONS } from "./registry.js";
+import { MIGRATIONS } from './registry.js';
 const TABLE_NAME = 'schema_migrations';
 const ensureMigrationsTable = async (sequelize) => {
     await sequelize.query(`CREATE TABLE IF NOT EXISTS \`${TABLE_NAME}\` (
@@ -19,10 +19,8 @@ export const runMigrations = async (sequelize) => {
         if (applied.has(migration.id))
             continue;
         console.log(`[Migration] applying ${migration.id} - ${migration.description}`);
-        await sequelize.transaction(async (transaction) => {
-            await migration.up(sequelize, transaction);
-            await sequelize.query(`INSERT INTO \`${TABLE_NAME}\` (id, description) VALUES (?, ?);`, { replacements: [migration.id, migration.description], transaction });
-        });
+        await migration.up(sequelize);
+        await sequelize.query(`INSERT INTO \`${TABLE_NAME}\` (id, description) VALUES (?, ?);`, { replacements: [migration.id, migration.description] });
     }
 };
 export const rollbackLastMigration = async (sequelize) => {
@@ -38,11 +36,8 @@ export const rollbackLastMigration = async (sequelize) => {
         throw new Error(`Migration not found in registry: ${last}`);
     }
     console.log(`[Migration] rollback ${migration.id} - ${migration.description}`);
-    await sequelize.transaction(async (transaction) => {
-        await migration.down(sequelize, transaction);
-        await sequelize.query(`DELETE FROM \`${TABLE_NAME}\` WHERE id = ?;`, {
-            replacements: [migration.id],
-            transaction,
-        });
+    await migration.down(sequelize);
+    await sequelize.query(`DELETE FROM \`${TABLE_NAME}\` WHERE id = ?;`, {
+        replacements: [migration.id],
     });
 };

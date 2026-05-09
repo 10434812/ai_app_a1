@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import redisClient from '../config/redis.ts'
+import redisClient from '../config/redis.js'
 
 const KEY_PREFIX = 'idem:v1'
 

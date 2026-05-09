@@ -1,4 +1,4 @@
-import {SystemConfig} from '../../models/SystemConfig.ts'
+import {SystemConfig} from '../../models/SystemConfig.js'
 
 export type ImageProvider = 'aliyun' | 'zhipu' | 'siliconflow'
 

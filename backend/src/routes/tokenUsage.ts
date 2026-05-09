@@ -1,6 +1,6 @@
 import express, {Request, Response} from 'express'
-import {getTokenStats, getTokenHistory, getTokenTrend} from '../services/tokenService.ts'
-import {authenticateToken} from '../middleware/auth.ts'
+import {getTokenStats, getTokenHistory, getTokenTrend} from '../services/tokenService.js'
+import {authenticateToken} from '../middleware/auth.js'
 
 const router = express.Router()
 

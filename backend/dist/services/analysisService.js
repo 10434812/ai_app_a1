@@ -1,10 +1,10 @@
 import { Op } from 'sequelize';
-import { Conversation } from "../models/Conversation.js";
-import { Message } from "../models/Message.js";
-import { User } from "../models/User.js";
-import { TokenUsageRecord } from "../models/TokenUsageRecord.js";
-import { Order } from "../models/Order.js";
-import { inferPlanKeyFromOrderPlan } from "../config/paymentPlans.js";
+import { Conversation } from '../models/Conversation.js';
+import { Message } from '../models/Message.js';
+import { User } from '../models/User.js';
+import { TokenUsageRecord } from '../models/TokenUsageRecord.js';
+import { Order } from '../models/Order.js';
+import { inferPlanKeyFromOrderPlan } from '../config/paymentPlans.js';
 export const getAnalysisStats = async () => {
     const totalConversations = await Conversation.count();
     const totalMessages = await Message.count();
@@ -15,14 +15,8 @@ export const getAnalysisStats = async () => {
         totalUsers,
     };
 };
-export const getUserPortraits = async (page = 1, pageSize = 50) => {
-    const safePage = Math.max(1, Number(page) || 1);
-    const safePageSize = Math.min(100, Math.max(1, Number(pageSize) || 50));
-    const offset = (safePage - 1) * safePageSize;
-    const { rows: users, count: total } = await User.findAndCountAll({
-        order: [['createdAt', 'DESC']],
-        limit: safePageSize,
-        offset,
+export const getUserPortraits = async () => {
+    const users = await User.findAll({
         include: [
             {
                 model: Conversation,
@@ -67,12 +61,7 @@ export const getUserPortraits = async (page = 1, pageSize = 50) => {
             lastActive,
         };
     });
-    return {
-        items: portraits,
-        total,
-        page: safePage,
-        pageSize: safePageSize,
-    };
+    return portraits;
 };
 export const getRecentQuestions = async (limit = 50) => {
     return await Message.findAll({

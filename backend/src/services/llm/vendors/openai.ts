@@ -1,5 +1,5 @@
-import {BaseLLMProvider} from '../provider.ts'
-import {ChatMessage, ChatStreamResult, LLMUsage} from '../types.ts'
+import {BaseLLMProvider} from '../provider.js'
+import {ChatMessage, ChatStreamResult, LLMUsage} from '../types.js'
 
 function extractContentFromChoice(payload: any): string {
   const choice = payload?.choices?.[0]

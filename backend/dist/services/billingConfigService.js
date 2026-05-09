@@ -1,5 +1,5 @@
-import { SystemConfig } from "../models/SystemConfig.js";
-import { ALL_MODELS } from "./llm/config.js";
+import { SystemConfig } from '../models/SystemConfig.js';
+import { ALL_MODELS } from './llm/config.js';
 const KEY_CHAT_RATES = 'BILLING_CHAT_RATES_V1';
 const KEY_IMAGE_RATES = 'BILLING_IMAGE_RATES_V1';
 const KEY_DEFAULT_CHAT_RATE = 'BILLING_DEFAULT_CHAT_RATE_V1';
@@ -10,29 +10,14 @@ const safeNumber = (value, fallback) => {
         return fallback;
     return parsed;
 };
-const normalizeChatRate = (value, fallback) => {
-    const normalized = value && typeof value === 'object' ? value : {};
-    return {
-        inputPer1K: safeNumber(normalized.inputPer1K, fallback.inputPer1K),
-        outputPer1K: safeNumber(normalized.outputPer1K, fallback.outputPer1K),
-    };
-};
-const normalizeImageRate = (value, fallback) => {
-    const normalized = value && typeof value === 'object' ? value : {};
-    return {
-        promptPer1K: safeNumber(normalized.promptPer1K, fallback.promptPer1K),
-        perImage: safeNumber(normalized.perImage, fallback.perImage),
-    };
-};
-const parseJsonRecord = (raw) => {
-    try {
-        const parsed = raw ? JSON.parse(raw) : {};
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    }
-    catch {
-        return {};
-    }
-};
+const normalizeChatRate = (value, fallback) => ({
+    inputPer1K: safeNumber(value?.inputPer1K, fallback.inputPer1K),
+    outputPer1K: safeNumber(value?.outputPer1K, fallback.outputPer1K),
+});
+const normalizeImageRate = (value, fallback) => ({
+    promptPer1K: safeNumber(value?.promptPer1K, fallback.promptPer1K),
+    perImage: safeNumber(value?.perImage, fallback.perImage),
+});
 const buildDefaultChatRates = () => {
     const rates = {};
     for (const model of ALL_MODELS) {
@@ -49,13 +34,8 @@ const buildDefaultImageRates = () => ({
     'model:zhipu-image': { promptPer1K: 1000, perImage: 90 },
 });
 const getConfigValue = async (key) => {
-    try {
-        const row = await SystemConfig.findByPk(key);
-        return row?.value || '';
-    }
-    catch {
-        return '';
-    }
+    const row = await SystemConfig.findByPk(key);
+    return row?.value || '';
 };
 const setConfigValue = async (key, value) => {
     const [row] = await SystemConfig.findOrCreate({
@@ -81,10 +61,34 @@ export const getBillingConfig = async () => {
         getConfigValue(KEY_DEFAULT_CHAT_RATE),
         getConfigValue(KEY_DEFAULT_IMAGE_RATE),
     ]);
-    const chatRatesParsed = parseJsonRecord(chatRatesRaw);
-    const imageRatesParsed = parseJsonRecord(imageRatesRaw);
-    const defaultChatParsed = parseJsonRecord(defaultChatRaw);
-    const defaultImageParsed = parseJsonRecord(defaultImageRaw);
+    let chatRatesParsed = {};
+    let imageRatesParsed = {};
+    let defaultChatParsed = {};
+    let defaultImageParsed = {};
+    try {
+        chatRatesParsed = chatRatesRaw ? JSON.parse(chatRatesRaw) : {};
+    }
+    catch {
+        chatRatesParsed = {};
+    }
+    try {
+        imageRatesParsed = imageRatesRaw ? JSON.parse(imageRatesRaw) : {};
+    }
+    catch {
+        imageRatesParsed = {};
+    }
+    try {
+        defaultChatParsed = defaultChatRaw ? JSON.parse(defaultChatRaw) : {};
+    }
+    catch {
+        defaultChatParsed = {};
+    }
+    try {
+        defaultImageParsed = defaultImageRaw ? JSON.parse(defaultImageRaw) : {};
+    }
+    catch {
+        defaultImageParsed = {};
+    }
     const normalizedDefaultChat = normalizeChatRate(defaultChatParsed, defaultChatRate);
     const normalizedDefaultImage = normalizeImageRate(defaultImageParsed, defaultImageRate);
     const normalizedChatRates = {};

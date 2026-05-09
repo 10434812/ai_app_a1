@@ -1,5 +1,5 @@
 import type {Sequelize} from 'sequelize-typescript'
-import type {Migration} from './types.ts'
+import type {Migration} from './types.js'
 
 const hasIndex = async (sequelize: Sequelize, tableName: string, indexName: string) => {
   const [rows] = await sequelize.query(

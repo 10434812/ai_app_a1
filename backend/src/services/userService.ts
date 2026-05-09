@@ -1,10 +1,10 @@
 import {Op} from 'sequelize'
-import {User} from '../models/User.ts'
-import {TokenUsageRecord} from '../models/TokenUsageRecord.ts'
-import {SystemConfig} from '../models/SystemConfig.ts'
-import redisClient from '../config/redis.ts'
+import {User} from '../models/User.js'
+import {TokenUsageRecord} from '../models/TokenUsageRecord.js'
+import {SystemConfig} from '../models/SystemConfig.js'
+import redisClient from '../config/redis.js'
 import bcrypt from 'bcryptjs'
-import {getVisitMetrics} from './visitService.ts'
+import {getVisitMetrics} from './visitService.js'
 
 const CACHE_TTL = 3600 // 1 hour
 const DEFAULT_REGISTER_TOKENS = 5000

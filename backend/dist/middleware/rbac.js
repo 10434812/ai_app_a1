@@ -1,4 +1,4 @@
-import { requireAdmin } from "./auth.js";
+import { ADMIN_ROLES, requireAdmin } from './auth.js';
 const PERMISSION_MAP = {
     'dashboard:view': new Set(['admin', 'super_admin', 'ops', 'finance', 'support']),
     'users:read': new Set(['admin', 'super_admin', 'ops', 'support']),
@@ -17,13 +17,8 @@ const PERMISSION_MAP = {
     'audit:read': new Set(['admin', 'super_admin', 'ops', 'finance', 'support']),
 };
 export const hasPermission = (role, permission) => {
-    if (role !== 'admin' &&
-        role !== 'super_admin' &&
-        role !== 'ops' &&
-        role !== 'finance' &&
-        role !== 'support') {
+    if (!role || !ADMIN_ROLES.has(role))
         return false;
-    }
     const allowed = PERMISSION_MAP[permission];
     if (!allowed)
         return false;

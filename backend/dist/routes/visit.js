@@ -1,6 +1,6 @@
 import express from 'express';
-import { optionalAuthenticateToken } from "../middleware/auth.js";
-import { recordVisit, resolveVisitorId } from "../services/visitService.js";
+import { optionalAuthenticateToken } from '../middleware/auth.js';
+import { recordVisit, resolveVisitorId } from '../services/visitService.js';
 const router = express.Router();
 router.post('/track', optionalAuthenticateToken, async (req, res) => {
     try {
@@ -23,8 +23,8 @@ router.post('/track', optionalAuthenticateToken, async (req, res) => {
         res.json({ success: true });
     }
     catch (error) {
-        console.warn('Track visit skipped:', error);
-        res.status(204).end();
+        console.error('Track visit error:', error);
+        res.status(500).json({ error: 'Failed to track visit' });
     }
 });
 export const visitRouter = router;

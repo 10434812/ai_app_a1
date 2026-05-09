@@ -1,37 +1,23 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { User } from "../models/User.js";
-import { Order } from "../models/Order.js";
-import { TokenUsageRecord } from "../models/TokenUsageRecord.js";
-import { weChatPayService } from "../services/payment/wechat.js";
-import { ADMIN_ROLES, authenticateToken, requireAdmin } from "../middleware/auth.js";
-import { recordTokenUsage } from "../services/tokenService.js";
-import redisClient from "../config/redis.js";
-import { MEMBERSHIP_PLAN_MATRIX } from "../config/membership.js";
-import { PAYMENT_PLANS, getPlanName, inferPlanKeyFromOrderPlan, makePlanSnapshot, parsePlanSnapshot } from "../config/paymentPlans.js";
-import { captureError, metricCounters } from "../services/observabilityService.js";
-import { withRateLimit } from "../middleware/rateLimit.js";
-import { sequelize } from "../config/db.js";
-import { ApiError, sendError } from "../errors/api.js";
-import { buildIdempotencyKey, createRequestFingerprint, runIdempotent, withOrderLock } from "../services/idempotencyService.js";
+import { User } from '../models/User.js';
+import { Order } from '../models/Order.js';
+import { TokenUsageRecord } from '../models/TokenUsageRecord.js';
+import { weChatPayService } from '../services/payment/wechat.js';
+import { ADMIN_ROLES, authenticateToken, requireAdmin } from '../middleware/auth.js';
+import { recordTokenUsage } from '../services/tokenService.js';
+import redisClient from '../config/redis.js';
+import { MEMBERSHIP_PLAN_MATRIX } from '../config/membership.js';
+import { PAYMENT_PLANS, getPlanName, inferPlanKeyFromOrderPlan, makePlanSnapshot, parsePlanSnapshot } from '../config/paymentPlans.js';
+import { captureError, metricCounters } from '../services/observabilityService.js';
+import { withRateLimit } from '../middleware/rateLimit.js';
+import { sequelize } from '../config/db.js';
+import { ApiError, sendError } from '../errors/api.js';
+import { buildIdempotencyKey, createRequestFingerprint, runIdempotent, withOrderLock } from '../services/idempotencyService.js';
 export const paymentRouter = Router();
 const WEBHOOK_MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const WECHAT_OUT_TRADE_NO_REGEX = /^[0-9a-fA-F]{32}$/;
 const buildWeChatOutTradeNo = (orderId) => orderId.replace(/-/g, '').slice(0, 32);
-const toOrderPlan = (planKey) => {
-    if (planKey.startsWith('token_pack'))
-        return 'token_pack';
-    if (planKey === 'monthly' || planKey === 'quarterly' || planKey === 'yearly')
-        return planKey;
-    return 'token_pack';
-};
-const readErrorMessage = (error) => {
-    if (error instanceof Error)
-        return error.message;
-    if (typeof error === 'string')
-        return error;
-    return '';
-};
 const resolveOrderIdFromWeChatOutTradeNo = (value) => {
     const trimmed = String(value || '').trim();
     if (!trimmed)
@@ -45,10 +31,10 @@ const readIdempotencyToken = (req) => {
     return value.slice(0, 128);
 };
 const isIdempotencyLockedError = (error) => {
-    return readErrorMessage(error) === 'IDEMPOTENCY_LOCKED';
+    return String(error?.message || '') === 'IDEMPOTENCY_LOCKED';
 };
 const isOrderLockedError = (error) => {
-    return readErrorMessage(error).startsWith('ORDER_LOCKED:');
+    return String(error?.message || '').startsWith('ORDER_LOCKED:');
 };
 const reportPaymentSecurityAlert = async (event, context) => {
     const key = `security:payment:${event}`;
@@ -195,7 +181,7 @@ paymentRouter.post('/checkout', authenticateToken, withRateLimit('payment'), asy
             const order = await Order.create({
                 userId,
                 amount: plan.amount,
-                plan: toOrderPlan(selectedPlanKey),
+                plan: planKey.includes('token') ? 'token_pack' : planKey,
                 planKey: selectedPlanKey,
                 planSnapshot: makePlanSnapshot(selectedPlanKey, plan),
                 status: 'pending',

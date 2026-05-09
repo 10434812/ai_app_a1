@@ -1,23 +1,11 @@
 import { Op } from 'sequelize';
-import { MediaTask } from "../../models/MediaTask.js";
-import { User } from "../../models/User.js";
-import { calculateImageCost, estimateTextTokens, getBillingConfig, } from "../billingConfigService.js";
-import { generateImage } from "./imageService.js";
-import { recordTokenUsage } from "../tokenService.js";
-import { captureError, metricCounters } from "../observabilityService.js";
-import redisClient from "../../config/redis.js";
-const getErrorMessage = (error) => {
-    if (error instanceof Error)
-        return error.message.trim();
-    if (typeof error === 'string')
-        return error.trim();
-    const normalized = error;
-    return String(normalized?.message || '').trim();
-};
-const isRedisOpen = () => {
-    const client = redisClient;
-    return Boolean(client.isOpen);
-};
+import { MediaTask } from '../../models/MediaTask.js';
+import { User } from '../../models/User.js';
+import { calculateImageCost, estimateTextTokens, getBillingConfig, } from '../billingConfigService.js';
+import { generateImage } from './imageService.js';
+import { recordTokenUsage } from '../tokenService.js';
+import { captureError, metricCounters } from '../observabilityService.js';
+import redisClient from '../../config/redis.js';
 const parseTaskMeta = (raw) => {
     if (!raw)
         return {};
@@ -71,7 +59,7 @@ export const toMediaTaskView = (task) => ({
     result: parseTaskResult(task.result),
 });
 const classifyTaskError = (error) => {
-    const message = getErrorMessage(error);
+    const message = String(error?.message || '').trim();
     const lower = message.toLowerCase();
     if (message.includes('Insufficient balance')) {
         return {
@@ -112,7 +100,7 @@ const calcBackoffMs = (attempt) => {
     return Math.min(120_000, Math.pow(2, safeAttempt) * 2000);
 };
 const acquireWorkerLock = async () => {
-    if (!isRedisOpen())
+    if (!redisClient.isOpen)
         return false;
     const lock = await redisClient.set(WORKER_LOCK_KEY, String(process.pid), {
         NX: true,
@@ -121,7 +109,7 @@ const acquireWorkerLock = async () => {
     return !!lock;
 };
 const releaseWorkerLock = async () => {
-    if (!isRedisOpen())
+    if (!redisClient.isOpen)
         return;
     try {
         await redisClient.del(WORKER_LOCK_KEY);
@@ -180,12 +168,7 @@ const processImageTask = async (task) => {
     await task.save();
 };
 const processVideoTask = async (task) => {
-    task.status = 'failed';
-    task.errorCode = 'VIDEO_NOT_IMPLEMENTED';
-    task.errorMessage = '视频生成功能正在接入中，暂未开放';
-    task.completedAt = new Date();
-    task.nextRetryAt = null;
-    await task.save();
+    throw new Error('视频生成功能正在接入中，下一版本开放。');
 };
 const processTask = async (task) => {
     task.status = 'processing';

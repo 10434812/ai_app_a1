@@ -1,17 +1,17 @@
 import express from 'express'
 import cors from 'cors'
-import {healthRouter} from './routes/health.ts'
-import {authRouter} from './routes/auth.ts'
-import {adminRouter} from './routes/admin.ts'
-import {chatRouter} from './routes/chat.ts'
-import {paymentRouter} from './routes/payment.ts'
-import {configRouter} from './routes/config.ts'
-import {tokenUsageRouter} from './routes/tokenUsage.ts'
-import wechatRouter from './routes/wechat.ts'
-import mediaRouter from './routes/media.ts'
-import {visitRouter} from './routes/visit.ts'
-import {captureError} from './services/observabilityService.ts'
-import {ApiError, attachRequestId, wrapLegacyErrorEnvelope} from './errors/api.ts'
+import {healthRouter} from './routes/health.js'
+import {authRouter} from './routes/auth.js'
+import {adminRouter} from './routes/admin.js'
+import {chatRouter} from './routes/chat.js'
+import {paymentRouter} from './routes/payment.js'
+import {configRouter} from './routes/config.js'
+import {tokenUsageRouter} from './routes/tokenUsage.js'
+import wechatRouter from './routes/wechat.js'
+import mediaRouter from './routes/media.js'
+import {visitRouter} from './routes/visit.js'
+import {captureError} from './services/observabilityService.js'
+import {ApiError, attachRequestId, wrapLegacyErrorEnvelope} from './errors/api.js'
 
 export const createApp = () => {
   const app = express()
@@ -31,7 +31,7 @@ export const createApp = () => {
       cors({
         origin: (origin, callback) => {
           if (!origin || corsOrigins.includes(origin)) return callback(null, true)
-          return callback(new Error('Not allowed by CORS'))
+          return callback(new Error(`Not allowed by CORS: ${origin}`))
         },
       }),
     )

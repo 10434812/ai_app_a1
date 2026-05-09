@@ -1,15 +1,10 @@
 import WxPay from 'wechatpay-node-v3';
-import { SystemConfig } from "../../models/SystemConfig.js";
+import { SystemConfig } from '../../models/SystemConfig.js';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const readConfigMap = async (keys) => {
     const rows = await SystemConfig.findAll({ where: { key: keys } });
     const map = new Map(rows.map((row) => [row.key, row.value || '']));
     return map;
-};
-const normalizeHeaderValue = (value) => {
-    if (Array.isArray(value))
-        return value[0];
-    return value;
 };
 const CONFIG_KEYS = [
     'WECHAT_PAY_ENABLED',
@@ -147,7 +142,7 @@ class WeChatPayService {
                 mock: true,
             };
         }
-        const result = (await client.transactions_native({
+        const result = await client.transactions_native({
             description,
             out_trade_no: orderId,
             notify_url: config.notifyUrl,
@@ -155,7 +150,7 @@ class WeChatPayService {
                 total: Math.round(amount * 100),
                 currency: 'CNY',
             },
-        }));
+        });
         if (result?.status !== 200 || !result?.data?.code_url) {
             throw new Error(result?.error || '微信 Native 下单失败');
         }
@@ -181,7 +176,7 @@ class WeChatPayService {
                 mock: true,
             };
         }
-        const result = (await client.transactions_jsapi({
+        const result = await client.transactions_jsapi({
             description,
             out_trade_no: orderId,
             notify_url: config.notifyUrl,
@@ -192,7 +187,7 @@ class WeChatPayService {
             payer: {
                 openid,
             },
-        }));
+        });
         if (result?.status !== 200 || !result?.data?.package) {
             throw new Error(result?.error || '微信 JSAPI 下单失败');
         }
@@ -211,10 +206,10 @@ class WeChatPayService {
         if (!client) {
             return !IS_PRODUCTION;
         }
-        const timestamp = normalizeHeaderValue(headers['wechatpay-timestamp']);
-        const nonce = normalizeHeaderValue(headers['wechatpay-nonce']);
-        const serial = normalizeHeaderValue(headers['wechatpay-serial']);
-        const signature = normalizeHeaderValue(headers['wechatpay-signature']);
+        const timestamp = headers['wechatpay-timestamp'];
+        const nonce = headers['wechatpay-nonce'];
+        const serial = headers['wechatpay-serial'];
+        const signature = headers['wechatpay-signature'];
         if (!timestamp || !nonce || !serial || !signature)
             return false;
         const bodyPayload = typeof body === 'string' ? body : JSON.stringify(body || {});
@@ -248,7 +243,7 @@ class WeChatPayService {
         }
         const total = Math.max(1, Math.round(Number(params.totalAmount || 0) * 100));
         const refund = Math.max(1, Math.round(Number(params.refundAmount || 0) * 100));
-        const payloadBase = {
+        const payload = {
             out_refund_no: outRefundNo,
             reason: params.reason || 'admin_refund',
             notify_url: params.notifyUrl || config.notifyUrl,
@@ -258,16 +253,13 @@ class WeChatPayService {
                 currency: 'CNY',
             },
         };
-        const payload = params.transactionId
-            ? {
-                ...payloadBase,
-                transaction_id: params.transactionId,
-            }
-            : {
-                ...payloadBase,
-                out_trade_no: params.outTradeNo || params.orderId,
-            };
-        const result = (await client.refunds(payload));
+        if (params.transactionId) {
+            payload.transaction_id = params.transactionId;
+        }
+        else {
+            payload.out_trade_no = params.outTradeNo || params.orderId;
+        }
+        const result = await client.refunds(payload);
         return {
             outRefundNo,
             refundId: result?.data?.refund_id,

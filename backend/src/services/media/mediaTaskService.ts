@@ -1,15 +1,15 @@
 import {Op} from 'sequelize'
-import {MediaTask} from '../../models/MediaTask.ts'
-import {User} from '../../models/User.ts'
+import {MediaTask} from '../../models/MediaTask.js'
+import {User} from '../../models/User.js'
 import {
   calculateImageCost,
   estimateTextTokens,
   getBillingConfig,
-} from '../billingConfigService.ts'
-import {generateImage} from './imageService.ts'
-import {recordTokenUsage} from '../tokenService.ts'
-import {captureError, metricCounters} from '../observabilityService.ts'
-import redisClient from '../../config/redis.ts'
+} from '../billingConfigService.js'
+import {generateImage} from './imageService.js'
+import {recordTokenUsage} from '../tokenService.js'
+import {captureError, metricCounters} from '../observabilityService.js'
+import redisClient from '../../config/redis.js'
 
 export interface CreateImageTaskInput {
   userId: string

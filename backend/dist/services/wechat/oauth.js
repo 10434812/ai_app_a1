@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SystemConfig } from "../../models/SystemConfig.js";
+import { SystemConfig } from '../../models/SystemConfig.js';
 export class WeChatOAuthService {
     static async getConfig() {
         const appIdConfig = await SystemConfig.findOne({ where: { key: 'WECHAT_APP_ID' } });

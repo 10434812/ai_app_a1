@@ -1,7 +1,7 @@
 import axios from 'axios';
 import crypto from 'crypto';
-import redisClient from "../../config/redis.js";
-import { SystemConfig } from "../../models/SystemConfig.js";
+import redisClient from '../../config/redis.js';
+import { SystemConfig } from '../../models/SystemConfig.js';
 const WECHAT_API_BASE = 'https://api.weixin.qq.com/cgi-bin';
 // Cache keys
 const ACCESS_TOKEN_KEY = 'wechat:access_token';

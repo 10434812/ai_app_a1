@@ -1,5 +1,5 @@
 import type {Sequelize} from 'sequelize-typescript'
-import type {Migration} from './types.ts'
+import type {Migration} from './types.js'
 
 const migration: Migration = {
   id: '202603030001_add_order_plan_fields',

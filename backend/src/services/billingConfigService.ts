@@ -1,5 +1,5 @@
-import {SystemConfig} from '../models/SystemConfig.ts'
-import {ALL_MODELS} from './llm/config.ts'
+import {SystemConfig} from '../models/SystemConfig.js'
+import {ALL_MODELS} from './llm/config.js'
 
 const KEY_CHAT_RATES = 'BILLING_CHAT_RATES_V1'
 const KEY_IMAGE_RATES = 'BILLING_IMAGE_RATES_V1'

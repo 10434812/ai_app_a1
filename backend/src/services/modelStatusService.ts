@@ -1,5 +1,5 @@
-import {SystemConfig} from '../models/SystemConfig.ts'
-import {ALL_MODELS} from './llm/config.ts'
+import {SystemConfig} from '../models/SystemConfig.js'
+import {ALL_MODELS} from './llm/config.js'
 
 const MODEL_STATUS_KEY_PREFIX = 'model_status:'
 

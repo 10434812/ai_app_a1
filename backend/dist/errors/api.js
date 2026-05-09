@@ -1,9 +1,4 @@
 import { randomUUID } from 'node:crypto';
-const asRecord = (value) => {
-    if (!value || typeof value !== 'object')
-        return null;
-    return value;
-};
 export class ApiError extends Error {
     status;
     code;
@@ -18,24 +13,23 @@ export class ApiError extends Error {
     }
 }
 const toStandardErrorPayload = (status, payload) => {
-    const normalized = asRecord(payload);
-    const raw = asRecord(normalized?.error);
-    if (raw) {
+    const raw = payload?.error;
+    if (raw && typeof raw === 'object') {
         return {
             error: {
-                code: typeof raw.code === 'string' && raw.code ? raw.code : typeof normalized?.code === 'string' ? normalized.code : `HTTP_${status}`,
-                message: typeof raw.message === 'string' && raw.message ? raw.message : 'Request failed',
+                code: raw.code || payload?.code || `HTTP_${status}`,
+                message: raw.message || 'Request failed',
                 retryable: typeof raw.retryable === 'boolean' ? raw.retryable : status >= 500,
                 details: raw.details,
             },
         };
     }
-    if (typeof normalized?.error === 'string') {
+    if (typeof raw === 'string') {
         return {
             error: {
-                code: typeof normalized?.code === 'string' && normalized.code ? normalized.code : `HTTP_${status}`,
-                message: normalized.error,
-                retryable: typeof normalized?.retryable === 'boolean' ? normalized.retryable : status >= 500,
+                code: payload?.code || `HTTP_${status}`,
+                message: raw,
+                retryable: typeof payload?.retryable === 'boolean' ? payload.retryable : status >= 500,
             },
         };
     }
@@ -53,9 +47,8 @@ export const wrapLegacyErrorEnvelope = (req, res, next) => {
     res.json = ((payload) => {
         if (res.statusCode >= 400) {
             const normalized = toStandardErrorPayload(res.statusCode, payload);
-            const errorEnvelope = asRecord(normalized);
-            if (errorEnvelope?.error && !errorEnvelope.error.requestId) {
-                errorEnvelope.error.requestId = req.requestId;
+            if (normalized?.error && typeof normalized.error === 'object' && !normalized.error.requestId) {
+                normalized.error.requestId = req.requestId;
             }
             return originalJson(normalized);
         }

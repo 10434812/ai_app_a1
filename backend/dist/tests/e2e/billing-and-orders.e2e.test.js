@@ -24,11 +24,10 @@ let SystemConfig;
 let mediaTaskService;
 const authHeader = (token) => ({ Authorization: `Bearer ${token}` });
 const parseErrorMessage = (body) => {
-    const normalized = body;
-    if (typeof normalized?.error === 'string')
-        return normalized.error;
-    if (typeof normalized?.error?.message === 'string')
-        return normalized.error.message;
+    if (typeof body?.error === 'string')
+        return body.error;
+    if (typeof body?.error?.message === 'string')
+        return body.error.message;
     return '';
 };
 const registerUser = async (tag) => {
@@ -61,14 +60,14 @@ const upsertSystemConfig = async (key, value) => {
     await SystemConfig.create({ key, value });
 };
 before(async () => {
-    const dbModule = await import("../../config/db.js");
-    const redisModule = await import("../../config/redis.js");
-    const appModule = await import("../../app.js");
-    const userModel = await import("../../models/User.js");
-    const orderModel = await import("../../models/Order.js");
-    const tokenUsageModel = await import("../../models/TokenUsageRecord.js");
-    const configModel = await import("../../models/SystemConfig.js");
-    mediaTaskService = await import("../../services/media/mediaTaskService.js");
+    const dbModule = await import('../../config/db.js');
+    const redisModule = await import('../../config/redis.js');
+    const appModule = await import('../../app.js');
+    const userModel = await import('../../models/User.js');
+    const orderModel = await import('../../models/Order.js');
+    const tokenUsageModel = await import('../../models/TokenUsageRecord.js');
+    const configModel = await import('../../models/SystemConfig.js');
+    mediaTaskService = await import('../../services/media/mediaTaskService.js');
     sequelize = dbModule.sequelize;
     redisClient = redisModule.default;
     User = userModel.User;
@@ -342,7 +341,7 @@ test('E2E billing flows: checkout->到账, chat 扣费, image 扣费, 余额不�
         const meta = chatRecord?.meta ? JSON.parse(chatRecord.meta) : {};
         const promptTokens = Number(meta?.prompt_tokens || 0);
         const completionTokens = Number(meta?.completion_tokens || 0);
-        const billingService = await import("../../services/billingConfigService.js");
+        const billingService = await import('../../services/billingConfigService.js');
         const config = await billingService.getBillingConfig();
         const expectedCost = billingService.calculateChatCost(config, 'manus', promptTokens, completionTokens);
         assert.equal(Number(chatRecord?.amount || 0), expectedCost, 'chat deduction should match latest billing config');

@@ -1,7 +1,7 @@
 import axios from 'axios'
 import crypto from 'crypto'
-import redisClient from '../../config/redis.ts'
-import { SystemConfig } from '../../models/SystemConfig.ts'
+import redisClient from '../../config/redis.js'
+import { SystemConfig } from '../../models/SystemConfig.js'
 
 const WECHAT_API_BASE = 'https://api.weixin.qq.com/cgi-bin'
 

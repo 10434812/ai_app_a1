@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import redisClient from "../config/redis.js";
+import redisClient from '../config/redis.js';
 const KEY_PREFIX = 'idem:v1';
 export const createRequestFingerprint = (payload) => {
     const raw = typeof payload === 'string' ? payload : JSON.stringify(payload || {});

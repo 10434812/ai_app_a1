@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { SystemConfig } from "../models/SystemConfig.js";
-import { getDisabledModelIds } from "../services/modelStatusService.js";
-import { getPublicModelStatusMap } from "../services/modelCatalogService.js";
+import { SystemConfig } from '../models/SystemConfig.js';
+import { getDisabledModelIds } from '../services/modelStatusService.js';
+import { getPublicModelStatusMap } from '../services/modelCatalogService.js';
 const router = Router();
 router.get('/', async (req, res) => {
     try {

@@ -1,5 +1,5 @@
 import {Table, Column, Model, DataType, ForeignKey, BelongsTo} from 'sequelize-typescript'
-import {User} from './User.ts'
+import {User} from './User.js'
 
 @Table({
   tableName: 'token_usage_records',

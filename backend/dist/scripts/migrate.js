@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { connectDB, sequelize } from "../config/db.js";
+import { connectDB, sequelize } from '../config/db.js';
 const main = async () => {
     await connectDB();
     await sequelize.close();

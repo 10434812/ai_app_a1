@@ -153,7 +153,7 @@ function onPanelScroll() {
 }
 
 function getLogo(id: string) {
-  const model = models.find((mm) => mm.id === id) as {id: string; website?: string; logo?: string} | undefined
+  const model = models.find((mm) => mm.id === id) as {id: string; name?: string; website?: string; logo?: string} | undefined
   const candidates = getModelLogoCandidates(model)
   if (!candidates.length) return ''
   const index = logoFailureIndex.value[id] || 0
@@ -161,7 +161,7 @@ function getLogo(id: string) {
 }
 
 function markLogoFailed(id: string) {
-  const model = models.find((mm) => mm.id === id) as {id: string; website?: string; logo?: string} | undefined
+  const model = models.find((mm) => mm.id === id) as {id: string; name?: string; website?: string; logo?: string} | undefined
   const candidates = getModelLogoCandidates(model)
   const current = logoFailureIndex.value[id] || 0
   if (!candidates.length || current >= candidates.length) return
@@ -214,7 +214,7 @@ function toggle(id: string) {
                   selectedModels.includes(m.id) ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-700 dark:text-indigo-300' : 'border-slate-200 bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200',
                 ]">
                 <div class="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 shrink-0">
-                  <img v-if="getLogo(m.id)" :src="getLogo(m.id)" @error="markLogoFailed(m.id)" class="w-full h-full object-cover" />
+                  <img v-if="getLogo(m.id)" :src="getLogo(m.id)" loading="lazy" decoding="async" @error="markLogoFailed(m.id)" class="w-full h-full object-cover" />
                   <div v-else class="w-full h-full flex items-center justify-center text-xs font-bold text-slate-400">
                     {{ m.name.substring(0, 1) }}
                   </div>

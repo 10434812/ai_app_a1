@@ -1,5 +1,5 @@
 import WxPay from 'wechatpay-node-v3'
-import {SystemConfig} from '../../models/SystemConfig.ts'
+import {SystemConfig} from '../../models/SystemConfig.js'
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 

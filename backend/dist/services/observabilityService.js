@@ -1,5 +1,5 @@
-import redisClient from "../config/redis.js";
-import { redactSensitive } from "../utils/redaction.js";
+import redisClient from '../config/redis.js';
+import { redactSensitive } from '../utils/redaction.js';
 const metricKey = (key) => `obs:counter:${key}`;
 const incrementCounter = async (key, by = 1) => {
     try {

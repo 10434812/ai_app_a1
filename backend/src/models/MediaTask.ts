@@ -10,7 +10,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
-import {User} from './User.ts'
+import {User} from './User.js'
 
 export type MediaTaskType = 'image' | 'video'
 export type MediaTaskStatus = 'pending' | 'processing' | 'retrying' | 'succeeded' | 'failed'

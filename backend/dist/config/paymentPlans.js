@@ -38,17 +38,7 @@ export const parsePlanSnapshot = (raw) => {
     if (!raw)
         return null;
     try {
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object' || typeof parsed.key !== 'string')
-            return null;
-        return {
-            key: parsed.key,
-            amount: Number(parsed.amount || 0),
-            durationDays: Number(parsed.durationDays || 0),
-            tokens: Number(parsed.tokens || 0),
-            name: String(parsed.name || ''),
-            createdAt: String(parsed.createdAt || ''),
-        };
+        return JSON.parse(raw);
     }
     catch {
         return null;

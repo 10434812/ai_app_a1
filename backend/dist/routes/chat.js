@@ -1,24 +1,21 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { LLMFactory } from "../services/llm/factory.js";
-import { releaseReservedTokens, reserveUserTokenBudget, settleReservedChatUsage } from "../services/tokenService.js";
-import redisClient from "../config/redis.js";
-import { Conversation } from "../models/Conversation.js";
-import { Message } from "../models/Message.js";
-import { User } from "../models/User.js";
-import { authenticateToken, optionalAuthenticateToken } from "../middleware/auth.js";
-import { withConcurrencyGuard, withEntitlement, enforceModelSelectionLimit } from "../middleware/entitlement.js";
-import { buildRealtimeContextMessage, buildRuntimeGuardrailMessage } from "../services/realtimeContextService.js";
-import { calculateChatCost, estimateTextTokens, getBillingConfig } from "../services/billingConfigService.js";
-import { captureError, metricCounters } from "../services/observabilityService.js";
-import { withRateLimit } from "../middleware/rateLimit.js";
-import { ALL_MODELS } from "../services/llm/config.js";
-import { SystemConfig } from "../models/SystemConfig.js";
-import { isModelActive } from "../services/modelStatusService.js";
-import { getPublicModelStatusMap } from "../services/modelCatalogService.js";
-import { detectRealtimeIntent } from "../services/realtimeIntentService.js";
-import { fetchRealtimeQuote } from "../services/realtimeQuoteService.js";
-import { formatRealtimeAnswer } from "../services/realtimeAnswerFormatter.js";
+import { LLMFactory } from '../services/llm/factory.js';
+import { releaseReservedTokens, reserveUserTokenBudget, settleReservedChatUsage } from '../services/tokenService.js';
+import redisClient from '../config/redis.js';
+import { Conversation } from '../models/Conversation.js';
+import { Message } from '../models/Message.js';
+import { User } from '../models/User.js';
+import { authenticateToken, optionalAuthenticateToken } from '../middleware/auth.js';
+import { withConcurrencyGuard, withEntitlement, enforceModelSelectionLimit } from '../middleware/entitlement.js';
+import { buildRealtimeContextMessage, buildRuntimeGuardrailMessage } from '../services/realtimeContextService.js';
+import { calculateChatCost, estimateTextTokens, getBillingConfig } from '../services/billingConfigService.js';
+import { captureError, metricCounters } from '../services/observabilityService.js';
+import { withRateLimit } from '../middleware/rateLimit.js';
+import { ALL_MODELS } from '../services/llm/config.js';
+import { SystemConfig } from '../models/SystemConfig.js';
+import { isModelActive } from '../services/modelStatusService.js';
+import { getPublicModelStatusMap } from '../services/modelCatalogService.js';
 export const chatRouter = Router();
 const IMAGE_ASSISTANT_MODEL_IDS = new Set(['aliyun-image', 'wanxiang', 'zhipu-image', 'kolors']);
 const IMAGE_REPLY_PATTERN = /!\[[^\]]*生成图片[^\]]*\]\([^)]*\)|\[(?:查看原图|原图)[^\]]*\]\([^)]*\)/i;
@@ -27,74 +24,7 @@ const MODEL_ID_ALIASES = {
     '360-ai': '360-gpt',
 };
 const IDENTITY_QUERY_RE = /(什么模型|哪个模型|模型id|model id|底层模型|你是谁|你是哪个|你是什么ai|你的身份)/i;
-const inflightRealtimeRequests = new Map();
-const toSafeStreamErrorMessage = (error) => {
-    const raw = error instanceof Error ? error.message.trim() : typeof error === 'string' ? error.trim() : '';
-    if (!raw)
-        return '请求失败，请稍后重试';
-    if (raw.includes('Token余额不足'))
-        return 'Token余额不足，请充值后重试';
-    if (raw.includes('Token预留失败'))
-        return '余额不足或服务繁忙，请稍后重试';
-    if (raw.includes('模型未返回有效文本内容'))
-        return '模型未返回有效内容，请重试';
-    if (raw.includes('模型不可用') || raw.includes('未启用'))
-        return '所选模型暂不可用，请更换后重试';
-    return '请求失败，请稍后重试';
-};
 const resolveModelAlias = (modelId) => MODEL_ID_ALIASES[modelId] || modelId;
-const getChatMessageContent = (message) => typeof message?.content === 'string' ? message.content : '';
-const normalizeRealtimeQueryKey = (query) => String(query || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-const getRealtimeRequestKey = (ownerKey, query) => `${ownerKey}:${normalizeRealtimeQueryKey(query)}`;
-const getSharedRealtimeResponse = (key, factory) => {
-    const existing = inflightRealtimeRequests.get(key);
-    if (existing) {
-        return { promise: existing, isPrimary: false };
-    }
-    const promise = factory().finally(() => {
-        inflightRealtimeRequests.delete(key);
-    });
-    inflightRealtimeRequests.set(key, promise);
-    return { promise, isPrimary: true };
-};
-const buildRealtimeFallbackMessage = (query, reason) => {
-    const raw = reason instanceof Error ? reason.message : String(reason || '');
-    const safeReason = raw.trim().slice(0, 180);
-    const lines = [
-        'Realtime lookup fallback:',
-        `- Original user question: ${query}`,
-        safeReason ? `- Live quote fetch failed: ${safeReason}` : '- Live quote fetch failed.',
-        '- You may answer with your general knowledge, but you MUST clearly say the data may not be realtime.',
-        '- Do not present stale figures as if they are current.',
-    ];
-    return {
-        role: 'system',
-        content: lines.join('\n'),
-    };
-};
-const buildRealtimeInjectionMessage = (query, realtime) => {
-    const lines = [
-        '[RealtimeQuoteInjected]',
-        `- User question: ${query}`,
-        `- Kind: ${realtime.kind}`,
-        `- Target: ${realtime.target}`,
-        `- Display name: ${realtime.displayName}`,
-        `- Source: ${realtime.sourceLabel}`,
-        `- Updated at: ${realtime.timestampLabel}`,
-        '- Ground truth snapshot:',
-        realtime.content,
-        '- Instruction: Use the realtime values above as primary facts and answer naturally in the assistant voice.',
-        '- You MUST mention source and update time in your final answer.',
-        '- Do not claim stale memorized values as current market data.',
-    ];
-    return {
-        role: 'system',
-        content: lines.join('\n'),
-    };
-};
 const mergeSystemMessagesToFront = (messages) => {
     const systemContents = [];
     const normalMessages = [];
@@ -499,7 +429,6 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
     // Optional auth user: logged-in users会走扣费逻辑，游客则不扣费
     const userId = req.user?.id ?? null;
     metricCounters.chatRequest();
-    const latestUserQuery = [...messages].reverse().find((m) => m?.role === 'user')?.content || '';
     let user = null;
     const billingConfig = await getBillingConfig();
     if (userId) {
@@ -560,7 +489,7 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
             });
             // Intelligent Context Compression
             // Strategy:
-            // 1. Always keep the system prompt (when present) and the last 6 messages intact.
+            // 1. Always keep the system prompt (if any) and the last 6 messages intact.
             // 2. For older messages, compress content if it exceeds a certain length.
             // 3. Drop oldest messages if total token count (estimated) exceeds safety limit.
             const MAX_CHARS_PER_OLD_MSG = 300;
@@ -612,57 +541,15 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
         }
     }
     // --- Context Building End ---
+    const latestUserQuery = [...messages].reverse().find((m) => m?.role === 'user')?.content || '';
     const runtimeGuardrail = buildRuntimeGuardrailMessage(latestUserQuery);
     const modelIdentityGuardrail = buildModelIdentityGuardrailMessage(model);
+    const realtimeContext = await buildRealtimeContextMessage(latestUserQuery);
     const routeMeta = await buildRouteMeta(String(model));
-    const realtimeIntent = detectRealtimeIntent(latestUserQuery);
-    if (realtimeIntent.matched) {
-        const realtimeOwnerKey = conversationId || userId || req.ip || 'guest';
-        const realtimeRequestKey = getRealtimeRequestKey(realtimeOwnerKey, latestUserQuery);
-        const { promise } = getSharedRealtimeResponse(realtimeRequestKey, async () => {
-            const quote = await fetchRealtimeQuote(realtimeIntent);
-            const presentation = formatRealtimeAnswer(quote);
-            return {
-                kind: quote.kind,
-                target: quote.target,
-                displayName: quote.displayName,
-                title: presentation.title,
-                content: presentation.content,
-                sourceLabel: presentation.sourceLabel,
-                timestampLabel: presentation.timestampLabel,
-            };
-        });
-        try {
-            const realtimeResponse = await promise;
-            const realtimeInjection = buildRealtimeInjectionMessage(latestUserQuery, realtimeResponse);
-            contextMessages = mergeSystemMessagesToFront([runtimeGuardrail, modelIdentityGuardrail, realtimeInjection, ...contextMessages]);
-        }
-        catch (error) {
-            captureError(error, {
-                scope: 'chat.realtime',
-                model,
-                conversationId: conversationId || undefined,
-                realtimeKind: realtimeIntent.kind,
-                realtimeTarget: realtimeIntent.target,
-            });
-            console.error('Realtime quote fetch failed:', error);
-            const realtimeFallback = buildRealtimeFallbackMessage(latestUserQuery, error);
-            const realtimeContext = await buildRealtimeContextMessage(latestUserQuery);
-            const prependSystemMessages = realtimeContext
-                ? [runtimeGuardrail, modelIdentityGuardrail, realtimeFallback, realtimeContext]
-                : [runtimeGuardrail, modelIdentityGuardrail, realtimeFallback];
-            contextMessages = mergeSystemMessagesToFront([...prependSystemMessages, ...contextMessages]);
-        }
-    }
-    else {
-        const realtimeContext = await buildRealtimeContextMessage(latestUserQuery);
-        const prependSystemMessages = realtimeContext
-            ? [runtimeGuardrail, modelIdentityGuardrail, realtimeContext]
-            : [runtimeGuardrail, modelIdentityGuardrail];
-        contextMessages = mergeSystemMessagesToFront([...prependSystemMessages, ...contextMessages]);
-    }
-    inputLenForCost = contextMessages.reduce((acc, m) => acc + getChatMessageContent(m).length, 0);
-    const estimatedPromptTokens = estimateTextTokens(contextMessages.map((m) => getChatMessageContent(m)).join('\n'));
+    const prependSystemMessages = realtimeContext ? [runtimeGuardrail, modelIdentityGuardrail, realtimeContext] : [runtimeGuardrail, modelIdentityGuardrail];
+    contextMessages = mergeSystemMessagesToFront([...prependSystemMessages, ...contextMessages]);
+    inputLenForCost = contextMessages.reduce((acc, m) => acc + (m?.content?.length || 0), 0);
+    const estimatedPromptTokens = estimateTextTokens(contextMessages.map((m) => m?.content || '').join('\n'));
     const minCost = calculateChatCost(billingConfig, model, estimatedPromptTokens, 0);
     const selectedModelCount = getSelectedModelCount(req.body?.selectedModelCount);
     if (user) {
@@ -672,7 +559,7 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
             reservedAmount = reservation.reservedAmount;
         }
         catch (err) {
-            const msg = err instanceof Error ? err.message : 'Token预留失败';
+            const msg = err?.message || 'Token预留失败';
             if (msg.includes('Insufficient balance')) {
                 res.status(402).json({ error: 'Token余额不足，请充值' });
                 return;
@@ -747,9 +634,8 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
                 console.log(`[FirstChunk] Model: ${model} Time: ${Date.now()}`);
             fullResponse += chunk || '';
             const success = res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-            const flushableRes = res;
-            if (typeof flushableRes.flush === 'function')
-                flushableRes.flush();
+            if (res.flush)
+                res.flush();
         });
         providerUsage = streamResult?.usage;
         console.log(`[StreamEnd] Model: ${model} TotalChunks: ${chunkCount}`);
@@ -818,7 +704,7 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
                 console.error('Token deduction error:', err);
                 metricCounters.tokenDeductFailed();
                 await releaseReservationSafely();
-                res.write(`data: ${JSON.stringify({ error: toSafeStreamErrorMessage(err) })}\n\n`);
+                res.write(`data: ${JSON.stringify({ error: err?.message || 'Token扣费失败，请稍后重试' })}\n\n`);
                 res.write('data: [DONE]\n\n');
                 res.end();
                 return;
@@ -831,7 +717,7 @@ chatRouter.post('/', optionalAuthenticateToken, withRateLimit('chat'), withEntit
     catch (error) {
         await releaseReservationSafely();
         captureError(error, { scope: 'chat.stream', model, conversationId: conversationId || undefined });
-        res.write(`data: ${JSON.stringify({ error: toSafeStreamErrorMessage(error) })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: error.message || 'Unknown error' })}\n\n`);
         res.end();
     }
 });

@@ -1,47 +1,21 @@
-import { BaseLLMProvider } from "../provider.js";
-const extractContentFromContentValue = (value) => {
-    if (typeof value === 'string')
-        return value;
-    if (Array.isArray(value)) {
-        return value
-            .map((part) => {
-            if (typeof part?.text === 'string')
-                return part.text;
-            if (typeof part?.content === 'string')
-                return part.content;
-            return '';
-        })
-            .join('');
-    }
-    return '';
-};
+import { BaseLLMProvider } from '../provider.js';
 function extractContentFromChoice(payload) {
     const choice = payload?.choices?.[0];
-    if (choice) {
-        // Streaming delta content
-        if (typeof choice?.delta?.content === 'string')
-            return choice.delta.content;
-        // Some vendors put the visible answer into `text`
-        if (typeof choice?.text === 'string')
-            return choice.text;
-        // Non-stream completion content
-        const messageContent = choice?.message?.content;
-        const extractedMessageContent = extractContentFromContentValue(messageContent);
-        if (extractedMessageContent)
-            return extractedMessageContent;
-        // Last-resort compatibility: some providers return the visible text under `delta.text`
-        const delta = choice?.delta;
-        if (typeof delta?.text === 'string')
-            return delta.text;
+    if (!choice)
+        return '';
+    // Streaming delta content
+    if (typeof choice?.delta?.content === 'string')
+        return choice.delta.content;
+    // Non-stream completion content
+    if (typeof choice?.message?.content === 'string')
+        return choice.message.content;
+    // Some providers return content blocks array
+    const messageContent = choice?.message?.content;
+    if (Array.isArray(messageContent)) {
+        return messageContent
+            .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+            .join('');
     }
-    // Top-level fallback formats used by some compatible gateways
-    const topLevelContent = extractContentFromContentValue(payload?.content) ||
-        extractContentFromContentValue(payload?.output_text) ||
-        extractContentFromContentValue(payload?.outputText);
-    if (topLevelContent)
-        return topLevelContent;
-    if (typeof payload?.text === 'string')
-        return payload.text;
     return '';
 }
 export class OpenAICompatibleProvider extends BaseLLMProvider {
@@ -146,13 +120,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
                         }
                     }
                     catch (e) {
-                        if (raw && raw !== '[DONE]') {
-                            emittedChunks++;
-                            onData(raw);
-                        }
-                        else {
-                            console.error('Error parsing SSE chunk:', e);
-                        }
+                        console.error('Error parsing SSE chunk:', e);
                     }
                 }
             }
@@ -164,18 +132,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             try {
                 const raw = buffer.trim().replace(/^data:\s?/, '');
                 if (raw && raw !== '[DONE]') {
-                    try {
-                        const data = JSON.parse(raw);
-                        streamUsage = parseUsage(data) || streamUsage;
-                        const content = extractContentFromChoice(data);
-                        if (content) {
-                            emittedChunks++;
-                            onData(content);
-                        }
-                    }
-                    catch {
+                    const data = JSON.parse(raw);
+                    streamUsage = parseUsage(data) || streamUsage;
+                    const content = extractContentFromChoice(data);
+                    if (content) {
                         emittedChunks++;
-                        onData(raw);
+                        onData(content);
                     }
                 }
             }

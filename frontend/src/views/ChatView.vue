@@ -977,7 +977,7 @@ function setPinnedResult(turn: ConversationTurn, resultId: string) {
 }
 
 function getModelLogoCandidateList(id: string): string[] {
-  const model = models.find((m) => m.id === id) as {id: string; website?: string; logo?: string} | undefined
+  const model = models.find((m) => m.id === id) as {id: string; name?: string; website?: string; logo?: string} | undefined
   return getModelLogoCandidates(model)
 }
 
@@ -2073,7 +2073,7 @@ function handleUpgrade() {
               <div class="px-5 py-4 border-b border-indigo-50/50 dark:border-slate-700/50 bg-gradient-to-r from-white/40 to-transparent dark:from-slate-700/20 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg bg-white dark:bg-slate-700 shadow-sm p-1 flex items-center justify-center border border-indigo-50/50 dark:border-slate-600">
-                    <img :src="getModelLogo(res.id)" @error="markLogoFailed(res.id)" class="w-full h-full object-contain rounded" v-if="getModelLogo(res.id)" />
+                    <img :src="getModelLogo(res.id)" loading="lazy" decoding="async" @error="markLogoFailed(res.id)" class="w-full h-full object-contain rounded" v-if="getModelLogo(res.id)" />
                     <div v-else class="text-xs font-bold text-slate-400">{{ res.name.substring(0, 1) }}</div>
                   </div>
                   <div>
@@ -2267,7 +2267,7 @@ function handleUpgrade() {
               <div class="flex items-center gap-1.5">
                 <div v-for="id in selectedModels" :key="id" class="relative group/icon shrink-0">
                   <div class="w-6 h-6 rounded bg-slate-50 dark:bg-slate-700 p-0.5 border border-slate-200 dark:border-slate-600 flex items-center justify-center overflow-hidden">
-                    <img :src="getModelLogo(id)" @error="markLogoFailed(id)" class="w-full h-full object-cover rounded-sm" v-if="getModelLogo(id)" />
+                    <img :src="getModelLogo(id)" loading="lazy" decoding="async" @error="markLogoFailed(id)" class="w-full h-full object-cover rounded-sm" v-if="getModelLogo(id)" />
                     <div v-else class="text-[10px] font-bold text-slate-400">{{ getModelName(id).substring(0, 1) }}</div>
                   </div>
                   <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
@@ -2321,7 +2321,7 @@ function handleUpgrade() {
                         ]">
                         <div class="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                           <div class="w-8 h-8 sm:w-8 sm:h-8 rounded-lg overflow-hidden shrink-0 bg-white dark:bg-slate-700 shadow-sm p-0.5">
-                            <img :src="getModelLogo(model.id)" @error="markLogoFailed(model.id)" class="w-full h-full object-cover rounded-md" v-if="getModelLogo(model.id)" />
+                            <img :src="getModelLogo(model.id)" loading="lazy" decoding="async" @error="markLogoFailed(model.id)" class="w-full h-full object-cover rounded-md" v-if="getModelLogo(model.id)" />
                             <div v-else class="w-full h-full bg-slate-50 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-400 rounded-md">
                               {{ model.name.substring(0, 1) }}
                             </div>

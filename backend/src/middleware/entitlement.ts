@@ -1,7 +1,7 @@
 import {Request, Response, NextFunction} from 'express'
-import {User} from '../models/User.ts'
-import redisClient from '../config/redis.ts'
-import {MEMBERSHIP_TIER_MAP, normalizeMembershipLevel} from '../config/membership.ts'
+import {User} from '../models/User.js'
+import redisClient from '../config/redis.js'
+import {MEMBERSHIP_TIER_MAP, normalizeMembershipLevel} from '../config/membership.js'
 
 type GuardChannel = 'chat' | 'image' | 'ai'
 

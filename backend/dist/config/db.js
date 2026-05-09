@@ -1,17 +1,17 @@
 import { Sequelize } from 'sequelize-typescript';
-import { User } from "../models/User.js";
-import { Conversation } from "../models/Conversation.js";
-import { Message } from "../models/Message.js";
-import { Order } from "../models/Order.js";
-import { OrderAuditLog } from "../models/OrderAuditLog.js";
-import { SystemConfig } from "../models/SystemConfig.js";
-import { TokenUsageRecord } from "../models/TokenUsageRecord.js";
-import { VisitLog } from "../models/VisitLog.js";
-import { MediaTask } from "../models/MediaTask.js";
+import { User } from '../models/User.js';
+import { Conversation } from '../models/Conversation.js';
+import { Message } from '../models/Message.js';
+import { Order } from '../models/Order.js';
+import { OrderAuditLog } from '../models/OrderAuditLog.js';
+import { SystemConfig } from '../models/SystemConfig.js';
+import { TokenUsageRecord } from '../models/TokenUsageRecord.js';
+import { VisitLog } from '../models/VisitLog.js';
+import { MediaTask } from '../models/MediaTask.js';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
-import { runMigrations } from "../migrations/runner.js";
+import { runMigrations } from '../migrations/runner.js';
 dotenv.config();
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
@@ -85,23 +85,19 @@ export const connectDB = async (options) => {
         await ensureDatabaseExists();
         await sequelize.authenticate();
         console.log('Database connected successfully.');
-        const shouldSyncModels = process.env.DB_ENABLE_SYNC !== 'false';
-        if (shouldSyncModels) {
-            const enableAutoAlter = process.env.DB_AUTO_ALTER === 'true';
-            if (enableAutoAlter) {
-                await sequelize.sync({ alter: true });
-            }
-            else {
-                await sequelize.sync();
-            }
-            console.log('Database synced via sequelize.sync().');
+        const isProduction = process.env.NODE_ENV === 'production';
+        const enableAutoAlter = process.env.DB_AUTO_ALTER === 'true';
+        if (isProduction || !enableAutoAlter) {
+            // Keep sync non-destructive by default to avoid runaway index creation in shared DBs.
+            await sequelize.sync();
         }
         else {
-            console.log('Database sync skipped by DB_ENABLE_SYNC=false.');
+            await sequelize.sync({ alter: true });
         }
         if (!options?.skipMigrations) {
             await runMigrations(sequelize);
         }
+        console.log('Database synced.');
         await seedAdmin();
     }
     catch (error) {

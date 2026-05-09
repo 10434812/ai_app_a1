@@ -1,6 +1,6 @@
 import express, {Request, Response} from 'express'
-import {optionalAuthenticateToken} from '../middleware/auth.ts'
-import {recordVisit, resolveVisitorId} from '../services/visitService.ts'
+import {optionalAuthenticateToken} from '../middleware/auth.js'
+import {recordVisit, resolveVisitorId} from '../services/visitService.js'
 
 const router = express.Router()
 

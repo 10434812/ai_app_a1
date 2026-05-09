@@ -1,6 +1,6 @@
 import {Table, Column, Model, DataType, PrimaryKey, Default, IsUUID, HasMany} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
-import {Conversation} from './Conversation.ts'
+import {Conversation} from './Conversation.js'
 
 @Table({
   tableName: 'users',

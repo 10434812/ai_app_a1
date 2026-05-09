@@ -1,154 +1,82 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { createUser, findUserByEmail, findUserById, findUserByReferralCode } from "../services/userService.js";
-import { authenticateToken, AUTH_COOKIE_NAME, JWT_SECRET, clearAuthCookie, issueAuthCookie } from "../middleware/auth.js";
-import { User } from "../models/User.js";
-import redisClient from "../config/redis.js";
-import { WeChatOAuthService } from "../services/wechat/oauth.js";
+import { createUser, findUserByEmail, findUserById, findUserByReferralCode } from '../services/userService.js';
+import { authenticateToken, JWT_SECRET } from '../middleware/auth.js';
+import { User } from '../models/User.js';
+import redisClient from '../config/redis.js';
+import { WeChatOAuthService } from '../services/wechat/oauth.js';
 import { v4 as uuidv4 } from 'uuid';
-import { recordTokenUsage } from "../services/tokenService.js";
-import { withRateLimit } from "../middleware/rateLimit.js";
-import { createSecureToken } from "../utils/random.js";
+import { recordTokenUsage } from '../services/tokenService.js';
+import { withRateLimit } from '../middleware/rateLimit.js';
 const router = express.Router();
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 72;
-const NAME_MIN_LENGTH = 2;
-const NAME_MAX_LENGTH = 32;
-const LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60;
-const LOGIN_FAILURE_LIMIT = 5;
-const LOGIN_LOCK_SECONDS = 15 * 60;
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
-const getClientIp = (req) => (req.header('x-forwarded-for') || '').split(',')[0]?.trim() || req.ip || 'unknown';
-const validateRegisterInput = (email, password, name) => {
-    if (!EMAIL_RE.test(email))
-        return '邮箱格式不正确';
-    if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
-        return `密码长度需为 ${PASSWORD_MIN_LENGTH}-${PASSWORD_MAX_LENGTH} 位`;
-    }
-    if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-        return '密码必须同时包含字母和数字';
-    }
-    if (name.length < NAME_MIN_LENGTH || name.length > NAME_MAX_LENGTH) {
-        return `用户名长度需为 ${NAME_MIN_LENGTH}-${NAME_MAX_LENGTH} 个字符`;
-    }
-    return '';
-};
-const getLoginFailKey = (email) => `auth:login:fail:${email}`;
-const getLoginLockKey = (email) => `auth:login:lock:${email}`;
-const buildAuthPayload = (user) => ({
-    user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar,
-        membershipLevel: user.membershipLevel,
-        membershipExpireAt: user.membershipExpireAt,
-        tokensBalance: user.tokensBalance,
-        referralCode: user.referralCode,
-        multiModelUsageCount: user.multiModelUsageCount,
-    },
-});
-const getLoginLockTtl = async (email) => {
-    try {
-        const ttl = await redisClient.ttl(getLoginLockKey(email));
-        return ttl > 0 ? ttl : 0;
-    }
-    catch (error) {
-        console.error('Read login lock ttl failed:', error);
-        return 0;
-    }
-};
-const recordLoginFailure = async (email) => {
-    try {
-        const failKey = getLoginFailKey(email);
-        const lockKey = getLoginLockKey(email);
-        const count = await redisClient.incr(failKey);
-        if (count === 1) {
-            await redisClient.expire(failKey, LOGIN_FAILURE_WINDOW_SECONDS);
-        }
-        if (count >= LOGIN_FAILURE_LIMIT) {
-            await redisClient.set(lockKey, '1', { EX: LOGIN_LOCK_SECONDS });
-            await redisClient.del(failKey);
-        }
-    }
-    catch (error) {
-        console.error('Record login failure failed:', error);
-    }
-};
-const clearLoginFailures = async (email) => {
-    try {
-        await redisClient.del([getLoginFailKey(email), getLoginLockKey(email)]);
-    }
-    catch (error) {
-        console.error('Clear login failure failed:', error);
-    }
-};
 // Login
 router.post('/login', withRateLimit('auth'), async (req, res) => {
     try {
-        const email = normalizeEmail(req.body?.email);
+        const email = String(req.body?.email || '').trim().toLowerCase();
         const password = String(req.body?.password || '');
-        const lockTtl = await getLoginLockTtl(email);
-        if (lockTtl > 0) {
-            return res.status(429).json({ error: `该账号已被临时锁定，请 ${lockTtl} 秒后再试` });
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
         }
         const user = await findUserByEmail(email);
         if (!user) {
-            await recordLoginFailure(email);
             return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        if (!user.passwordHash) {
+            console.warn('[auth/login] user has no password hash:', { userId: user.id, email: user.email });
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        if (user.isActive === false) {
+            return res.status(403).json({ error: 'Account is disabled' });
         }
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) {
-            await recordLoginFailure(email);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-        if (!user.isActive) {
-            return res.status(403).json({ error: 'Account disabled' });
-        }
-        await clearLoginFailures(email);
         const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-        issueAuthCookie(req, res, token);
-        res.json(buildAuthPayload(user));
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+            },
+        });
     }
     catch (error) {
+        console.error('Login failed:', error);
         res.status(500).json({ error: 'Login failed' });
     }
 });
 // Register
 router.post('/register', withRateLimit('auth'), async (req, res) => {
     try {
-        const email = normalizeEmail(req.body?.email);
+        const email = String(req.body?.email || '').trim().toLowerCase();
         const password = String(req.body?.password || '');
-        const fallbackName = email.includes('@') ? email.split('@')[0] : '';
-        const name = String(req.body?.name || fallbackName).trim();
-        const validationError = validateRegisterInput(email, password, name);
-        if (validationError) {
-            return res.status(400).json({ error: validationError });
+        const name = String(req.body?.name || '').trim();
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
         }
         const existingUser = await findUserByEmail(email);
         if (existingUser) {
             return res.status(400).json({ error: 'Email already exists' });
         }
-        const user = await createUser(email, password, name);
+        const user = await createUser(email, password, name || email.split('@')[0]);
         const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-        issueAuthCookie(req, res, token);
-        res.json(buildAuthPayload(user));
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+            },
+        });
     }
     catch (error) {
         res.status(500).json({ error: 'Registration failed' });
     }
-});
-router.post('/forgot-password', withRateLimit('auth'), async (req, res) => {
-    const email = normalizeEmail(req.body?.email);
-    if (!EMAIL_RE.test(email)) {
-        return res.status(400).json({ error: '邮箱格式不正确' });
-    }
-    const ip = getClientIp(req);
-    console.warn(`[FORGOT_PASSWORD_UNAVAILABLE] email=${email} ip=${ip}`);
-    return res.status(501).json({ error: '当前未配置邮箱找回密码服务，请联系管理员处理' });
 });
 // Get Current User (Me)
 router.get('/me', authenticateToken, async (req, res) => {
@@ -158,7 +86,20 @@ router.get('/me', authenticateToken, async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        res.json(buildAuthPayload(user));
+        res.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                avatar: user.avatar,
+                membershipLevel: user.membershipLevel,
+                membershipExpireAt: user.membershipExpireAt,
+                tokensBalance: user.tokensBalance,
+                referralCode: user.referralCode,
+                multiModelUsageCount: user.multiModelUsageCount,
+            },
+        });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch user' });
@@ -173,17 +114,13 @@ router.post('/referral/generate', authenticateToken, async (req, res) => {
         if (user.referralCode) {
             return res.json({ referralCode: user.referralCode });
         }
-        let code = '';
-        for (let i = 0; i < 5; i++) {
-            const candidate = createSecureToken(4);
-            const existing = await findUserByReferralCode(candidate);
-            if (!existing) {
-                code = candidate;
-                break;
-            }
-        }
-        if (!code) {
-            return res.status(500).json({ error: 'Failed to generate code' });
+        // Generate unique code (simple 8 char random)
+        const generateCode = () => Math.random().toString(36).substring(2, 10).toUpperCase();
+        let code = generateCode();
+        // Simple check for collision (retry once)
+        let existing = await findUserByReferralCode(code);
+        if (existing) {
+            code = generateCode();
         }
         user.referralCode = code;
         await user.save();
@@ -269,6 +206,7 @@ router.post('/wechat/login', withRateLimit('auth'), async (req, res) => {
         }
         if (!user) {
             // Create new user
+            const randomSuffix = uuidv4().split('-')[0];
             // Use purely random email to prevent WeChat ID exposure
             const email = `wx_${uuidv4()}@local.app`;
             const password = uuidv4(); // Random password
@@ -298,26 +236,29 @@ router.post('/wechat/login', withRateLimit('auth'), async (req, res) => {
                 await user.save();
         }
         const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-        issueAuthCookie(req, res, token);
-        res.json(buildAuthPayload(user));
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                avatar: user.avatar,
+                membershipLevel: user.membershipLevel,
+                tokensBalance: user.tokensBalance,
+                multiModelUsageCount: user.multiModelUsageCount,
+            },
+        });
     }
     catch (error) {
         console.error('WeChat login error:', error);
-        const message = error instanceof Error ? error.message : 'WeChat login failed';
-        res.status(500).json({ error: message });
+        res.status(500).json({ error: error.message || 'WeChat login failed' });
     }
 });
 // Logout
 router.post('/logout', authenticateToken, async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1] ||
-            req.headers.cookie
-                ?.split(';')
-                .map((item) => item.trim())
-                .find((item) => item.startsWith(`${AUTH_COOKIE_NAME}=`))
-                ?.split('=')
-                .slice(1)
-                .join('=');
+        const token = req.headers.authorization?.split(' ')[1];
         if (token) {
             const decoded = jwt.decode(token);
             if (decoded && decoded.exp) {
@@ -331,7 +272,6 @@ router.post('/logout', authenticateToken, async (req, res) => {
         const userId = req.user?.id || 'Unknown';
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         console.log(`[LOGOUT] User: ${userId}, IP: ${ip}, Time: ${new Date().toISOString()}`);
-        clearAuthCookie(req, res);
         res.json({ message: 'Logged out successfully' });
     }
     catch (error) {

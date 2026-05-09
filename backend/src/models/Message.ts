@@ -1,6 +1,6 @@
 import {Table, Column, Model, DataType, ForeignKey, BelongsTo, PrimaryKey, Default, IsUUID} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
-import {Conversation} from './Conversation.ts'
+import {Conversation} from './Conversation.js'
 
 @Table({tableName: 'messages', timestamps: true})
 export class Message extends Model {

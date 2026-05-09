@@ -1,6 +1,6 @@
-import redisClient from "../config/redis.js";
-import { SystemConfig } from "../models/SystemConfig.js";
-import { User } from "../models/User.js";
+import redisClient from '../config/redis.js';
+import { SystemConfig } from '../models/SystemConfig.js';
+import { User } from '../models/User.js';
 const envInt = (key, fallback) => {
     const value = Number.parseInt(process.env[key] || '', 10);
     if (!Number.isFinite(value) || value <= 0)
@@ -35,13 +35,6 @@ const DEFAULTS = {
         ipPerMinute: envInt('RATE_LIMIT_AUTH_IP_PER_MINUTE', 40),
         guestPerMinute: envInt('RATE_LIMIT_AUTH_GUEST_PER_MINUTE', 12),
         ipConcurrency: envInt('RATE_LIMIT_AUTH_IP_CONCURRENCY', 6),
-    },
-    admin: {
-        scope: 'admin',
-        userPerMinute: envInt('RATE_LIMIT_ADMIN_USER_PER_MINUTE', 120),
-        ipPerMinute: envInt('RATE_LIMIT_ADMIN_IP_PER_MINUTE', 180),
-        guestPerMinute: envInt('RATE_LIMIT_ADMIN_GUEST_PER_MINUTE', 1),
-        ipConcurrency: envInt('RATE_LIMIT_ADMIN_IP_CONCURRENCY', 12),
     },
 };
 const parseList = (value) => new Set(String(value || '')

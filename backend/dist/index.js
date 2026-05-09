@@ -1,11 +1,11 @@
 import 'reflect-metadata';
 import 'dotenv/config';
-import { createApp } from "./app.js";
-import { connectDB } from "./config/db.js";
-import { connectRedis } from "./config/redis.js";
-import { startMonthlyQuotaScheduler } from "./services/membershipQuotaService.js";
-import { captureError, initObservability } from "./services/observabilityService.js";
-import { startMediaTaskWorker } from "./services/media/mediaTaskService.js";
+import { createApp } from './app.js';
+import { connectDB } from './config/db.js';
+import { connectRedis } from './config/redis.js';
+import { startMonthlyQuotaScheduler } from './services/membershipQuotaService.js';
+import { captureError, initObservability } from './services/observabilityService.js';
+import { startMediaTaskWorker } from './services/media/mediaTaskService.js';
 const startServer = async () => {
     await initObservability();
     await connectDB();
@@ -14,9 +14,9 @@ const startServer = async () => {
     const port = Number(process.env.PORT ?? 4000);
     // Verify tables
     try {
-        const { User } = await import("./models/User.js");
-        const { Conversation } = await import("./models/Conversation.js");
-        const { Message } = await import("./models/Message.js");
+        const { User } = await import('./models/User.js');
+        const { Conversation } = await import('./models/Conversation.js');
+        const { Message } = await import('./models/Message.js');
         console.log('--- DB Check ---');
         console.log('Users:', await User.count());
         console.log('Conversations:', await Conversation.count());

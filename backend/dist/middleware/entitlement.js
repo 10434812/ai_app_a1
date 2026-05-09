@@ -1,6 +1,6 @@
-import { User } from "../models/User.js";
-import redisClient from "../config/redis.js";
-import { MEMBERSHIP_TIER_MAP, normalizeMembershipLevel } from "../config/membership.js";
+import { User } from '../models/User.js';
+import redisClient from '../config/redis.js';
+import { MEMBERSHIP_TIER_MAP, normalizeMembershipLevel } from '../config/membership.js';
 const attachEntitlement = async (req) => {
     if (!req.user?.id)
         return null;

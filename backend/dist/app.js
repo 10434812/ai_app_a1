@@ -1,74 +1,36 @@
 import express from 'express';
 import cors from 'cors';
-import { healthRouter } from "./routes/health.js";
-import { authRouter } from "./routes/auth.js";
-import { adminRouter } from "./routes/admin.js";
-import { chatRouter } from "./routes/chat.js";
-import { paymentRouter } from "./routes/payment.js";
-import { configRouter } from "./routes/config.js";
-import { tokenUsageRouter } from "./routes/tokenUsage.js";
-import wechatRouter from "./routes/wechat.js";
-import mediaRouter from "./routes/media.js";
-import { visitRouter } from "./routes/visit.js";
-import { captureError } from "./services/observabilityService.js";
-import { ApiError, attachRequestId, wrapLegacyErrorEnvelope } from "./errors/api.js";
-const DEFAULT_LOCAL_CORS_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3001',
-];
-const DEFAULT_PRODUCTION_CORS_ORIGINS = [
-    'https://ukb88.com',
-    'https://www.ukb88.com',
-    'https://*.ukb88.com',
-    'http://ukb88.com',
-    'http://www.ukb88.com',
-    'http://*.ukb88.com',
-];
-const parseCorsOrigins = (value) => value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-const matchesCorsOrigin = (origin, pattern) => {
-    if (origin === pattern)
-        return true;
-    if (!pattern.includes('*'))
-        return false;
-    try {
-        const originUrl = new URL(origin);
-        const patternUrl = new URL(pattern.replace('*.', 'placeholder.'));
-        const suffix = patternUrl.hostname.replace(/^placeholder\./, '');
-        return originUrl.protocol === patternUrl.protocol && originUrl.hostname.endsWith(`.${suffix}`);
-    }
-    catch {
-        return false;
-    }
-};
+import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
+import { adminRouter } from './routes/admin.js';
+import { chatRouter } from './routes/chat.js';
+import { paymentRouter } from './routes/payment.js';
+import { configRouter } from './routes/config.js';
+import { tokenUsageRouter } from './routes/tokenUsage.js';
+import wechatRouter from './routes/wechat.js';
+import mediaRouter from './routes/media.js';
+import { visitRouter } from './routes/visit.js';
+import { captureError } from './services/observabilityService.js';
+import { ApiError, attachRequestId, wrapLegacyErrorEnvelope } from './errors/api.js';
 export const createApp = () => {
     const app = express();
-    app.set('trust proxy', 1);
-    const configuredCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || '');
-    const corsOrigins = Array.from(new Set([
-        ...configuredCorsOrigins,
-        ...DEFAULT_LOCAL_CORS_ORIGINS,
-        ...(process.env.NODE_ENV === 'production' ? DEFAULT_PRODUCTION_CORS_ORIGINS : []),
-    ]));
+    const corsOrigins = (process.env.CORS_ORIGIN || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) {
+        throw new Error('CORS_ORIGIN must be configured in production.');
+    }
     if (corsOrigins.length === 0) {
-        app.use(cors({
-            origin: true,
-            credentials: true,
-        }));
+        app.use(cors());
     }
     else {
         app.use(cors({
             origin: (origin, callback) => {
-                if (!origin || corsOrigins.some((pattern) => matchesCorsOrigin(origin, pattern))) {
+                if (!origin || corsOrigins.includes(origin))
                     return callback(null, true);
-                }
-                return callback(new Error('Not allowed by CORS'));
+                return callback(new Error(`Not allowed by CORS: ${origin}`));
             },
-            credentials: true,
         }));
     }
     app.use(attachRequestId);
@@ -86,16 +48,6 @@ export const createApp = () => {
     app.use('/api/media', mediaRouter);
     app.use('/api/visit', visitRouter);
     app.use((err, req, res, _next) => {
-        if (err instanceof Error && err.message === 'Not allowed by CORS') {
-            return res.status(403).json({
-                error: {
-                    code: 'CORS_FORBIDDEN',
-                    message: 'Origin not allowed',
-                    retryable: false,
-                    requestId: req.requestId,
-                },
-            });
-        }
         captureError(err, {
             scope: 'express.middleware',
             method: req.method,

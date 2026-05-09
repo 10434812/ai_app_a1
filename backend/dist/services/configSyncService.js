@@ -1,4 +1,4 @@
-import { SystemConfig } from "../models/SystemConfig.js";
+import { SystemConfig } from '../models/SystemConfig.js';
 const VOLATILE_KEY_EXACT = new Set([
     'membership_monthly_quota_last_cycle',
 ]);

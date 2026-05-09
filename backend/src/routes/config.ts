@@ -1,7 +1,7 @@
 import {Router, Request, Response} from 'express'
-import {SystemConfig} from '../models/SystemConfig.ts'
-import {getDisabledModelIds} from '../services/modelStatusService.ts'
-import {getPublicModelStatusMap} from '../services/modelCatalogService.ts'
+import {SystemConfig} from '../models/SystemConfig.js'
+import {getDisabledModelIds} from '../services/modelStatusService.js'
+import {getPublicModelStatusMap} from '../services/modelCatalogService.js'
 
 const router = Router()
 

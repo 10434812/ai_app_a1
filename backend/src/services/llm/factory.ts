@@ -1,8 +1,8 @@
-import {LLMProvider} from './types.ts'
-import {MockProvider} from './vendors/mock.ts'
-import {OpenAICompatibleProvider} from './vendors/openai.ts'
-import {ALL_MODELS} from './config.ts'
-import {SystemConfig} from '../../models/SystemConfig.ts'
+import {LLMProvider} from './types.js'
+import {MockProvider} from './vendors/mock.js'
+import {OpenAICompatibleProvider} from './vendors/openai.js'
+import {ALL_MODELS} from './config.js'
+import {SystemConfig} from '../../models/SystemConfig.js'
 
 const MODEL_ID_ALIASES: Record<string, string> = {
   // Frontend compatibility aliases

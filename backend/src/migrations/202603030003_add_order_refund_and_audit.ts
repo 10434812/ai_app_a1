@@ -1,5 +1,5 @@
 import type {Sequelize} from 'sequelize-typescript'
-import type {Migration} from './types.ts'
+import type {Migration} from './types.js'
 
 const ORDER_TABLE = 'orders'
 const AUDIT_TABLE = 'order_audit_logs'

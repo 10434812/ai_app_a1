@@ -1,11 +1,11 @@
 import 'reflect-metadata'
 import 'dotenv/config'
-import {createApp} from './app.ts'
-import {connectDB} from './config/db.ts'
-import {connectRedis} from './config/redis.ts'
-import {startMonthlyQuotaScheduler} from './services/membershipQuotaService.ts'
-import {captureError, initObservability} from './services/observabilityService.ts'
-import {startMediaTaskWorker} from './services/media/mediaTaskService.ts'
+import {createApp} from './app.js'
+import {connectDB} from './config/db.js'
+import {connectRedis} from './config/redis.js'
+import {startMonthlyQuotaScheduler} from './services/membershipQuotaService.js'
+import {captureError, initObservability} from './services/observabilityService.js'
+import {startMediaTaskWorker} from './services/media/mediaTaskService.js'
 
 const startServer = async () => {
   await initObservability()
@@ -17,9 +17,9 @@ const startServer = async () => {
 
   // Verify tables
   try {
-    const {User} = await import('./models/User.ts')
-    const {Conversation} = await import('./models/Conversation.ts')
-    const {Message} = await import('./models/Message.ts')
+    const {User} = await import('./models/User.js')
+    const {Conversation} = await import('./models/Conversation.js')
+    const {Message} = await import('./models/Message.js')
 
     console.log('--- DB Check ---')
     console.log('Users:', await User.count())

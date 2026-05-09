@@ -1,7 +1,7 @@
-import { MockProvider } from "./vendors/mock.js";
-import { OpenAICompatibleProvider } from "./vendors/openai.js";
-import { ALL_MODELS } from "./config.js";
-import { SystemConfig } from "../../models/SystemConfig.js";
+import { MockProvider } from './vendors/mock.js';
+import { OpenAICompatibleProvider } from './vendors/openai.js';
+import { ALL_MODELS } from './config.js';
+import { SystemConfig } from '../../models/SystemConfig.js';
 const MODEL_ID_ALIASES = {
     // Frontend compatibility aliases
     minimax: 'hailuo',

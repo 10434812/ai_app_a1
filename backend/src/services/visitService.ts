@@ -1,6 +1,6 @@
 import {Op} from 'sequelize'
 import type {Request} from 'express'
-import {VisitLog} from '../models/VisitLog.ts'
+import {VisitLog} from '../models/VisitLog.js'
 
 const VISITOR_ID_HEADER = 'x-visitor-id'
 const MAX_VISITOR_ID_LENGTH = 128

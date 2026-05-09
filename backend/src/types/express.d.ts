@@ -1,6 +1,6 @@
 export {}
 
-import type {MembershipLevel, MembershipLimits} from '../config/membership.ts'
+import type {MembershipLevel, MembershipLimits} from '../config/membership.js'
 
 declare global {
   namespace Express {

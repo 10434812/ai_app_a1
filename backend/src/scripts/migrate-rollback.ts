@@ -1,6 +1,6 @@
 import 'dotenv/config'
-import {connectDB, sequelize} from '../config/db.ts'
-import {rollbackLastMigration} from '../migrations/runner.ts'
+import {connectDB, sequelize} from '../config/db.js'
+import {rollbackLastMigration} from '../migrations/runner.js'
 
 const main = async () => {
   await connectDB({skipMigrations: true})

@@ -69,14 +69,14 @@ const upsertSystemConfig = async (key: string, value: string) => {
 }
 
 before(async () => {
-  const dbModule = await import('../../config/db.ts')
-  const redisModule = await import('../../config/redis.ts')
-  const appModule = await import('../../app.ts')
-  const userModel = await import('../../models/User.ts')
-  const orderModel = await import('../../models/Order.ts')
-  const tokenUsageModel = await import('../../models/TokenUsageRecord.ts')
-  const configModel = await import('../../models/SystemConfig.ts')
-  mediaTaskService = await import('../../services/media/mediaTaskService.ts')
+  const dbModule = await import('../../config/db.js')
+  const redisModule = await import('../../config/redis.js')
+  const appModule = await import('../../app.js')
+  const userModel = await import('../../models/User.js')
+  const orderModel = await import('../../models/Order.js')
+  const tokenUsageModel = await import('../../models/TokenUsageRecord.js')
+  const configModel = await import('../../models/SystemConfig.js')
+  mediaTaskService = await import('../../services/media/mediaTaskService.js')
 
   sequelize = dbModule.sequelize
   redisClient = redisModule.default
@@ -400,7 +400,7 @@ test(
       const promptTokens = Number(meta?.prompt_tokens || 0)
       const completionTokens = Number(meta?.completion_tokens || 0)
 
-      const billingService = await import('../../services/billingConfigService.ts')
+      const billingService = await import('../../services/billingConfigService.js')
       const config = await billingService.getBillingConfig()
       const expectedCost = billingService.calculateChatCost(config, 'manus', promptTokens, completionTokens)
       assert.equal(Number(chatRecord?.amount || 0), expectedCost, 'chat deduction should match latest billing config')

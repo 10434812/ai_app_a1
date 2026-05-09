@@ -1,6 +1,6 @@
-import {User} from '../models/User.ts'
-import {TokenUsageRecord} from '../models/TokenUsageRecord.ts'
-import {sequelize} from '../config/db.ts'
+import {User} from '../models/User.js'
+import {TokenUsageRecord} from '../models/TokenUsageRecord.js'
+import {sequelize} from '../config/db.js'
 import {Op} from 'sequelize'
 import type {Transaction} from 'sequelize'
 

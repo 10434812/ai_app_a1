@@ -1,4 +1,4 @@
-import {ChatMessage, LLMProvider} from './types.ts'
+import {ChatMessage, LLMProvider} from './types.js'
 
 export abstract class BaseLLMProvider implements LLMProvider {
   constructor(public name: string) {}

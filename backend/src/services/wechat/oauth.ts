@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { SystemConfig } from '../../models/SystemConfig.ts'
+import { SystemConfig } from '../../models/SystemConfig.js'
 
 interface WeChatConfig {
   appId: string

@@ -1,8 +1,8 @@
 import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import {connectDB, sequelize} from '../config/db.ts'
-import {upsertSystemConfigs, type ExportableConfigRow} from '../services/configSyncService.ts'
+import {connectDB, sequelize} from '../config/db.js'
+import {upsertSystemConfigs, type ExportableConfigRow} from '../services/configSyncService.js'
 
 const parseArgs = (argv: string[]) => {
   const options: {

@@ -1,4 +1,4 @@
-import {ChatMessage} from './llm/types.ts'
+import {ChatMessage} from './llm/types.js'
 
 const GOLD_PRICE_URL = 'https://stooq.com/q/l/?s=xauusd&i=d'
 const STOOQ_QUOTE_URL = 'https://stooq.com/q/l/?i=d&s='

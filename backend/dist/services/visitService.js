@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { VisitLog } from "../models/VisitLog.js";
+import { VisitLog } from '../models/VisitLog.js';
 const VISITOR_ID_HEADER = 'x-visitor-id';
 const MAX_VISITOR_ID_LENGTH = 128;
 const MAX_PATH_LENGTH = 255;

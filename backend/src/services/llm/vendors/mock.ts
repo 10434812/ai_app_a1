@@ -1,5 +1,5 @@
-import {BaseLLMProvider} from '../provider.ts'
-import {ChatMessage, ChatStreamResult} from '../types.ts'
+import {BaseLLMProvider} from '../provider.js'
+import {ChatMessage, ChatStreamResult} from '../types.js'
 
 export class MockProvider extends BaseLLMProvider {
   constructor() {

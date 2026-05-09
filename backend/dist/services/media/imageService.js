@@ -1,4 +1,4 @@
-import { SystemConfig } from "../../models/SystemConfig.js";
+import { SystemConfig } from '../../models/SystemConfig.js';
 const ALIYUN_IMAGE_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis';
 const ALIYUN_TASK_URL = 'https://dashscope.aliyuncs.com/api/v1/tasks';
 const ZHIPU_IMAGE_URL = 'https://open.bigmodel.cn/api/paas/v4/images/generations';
@@ -49,14 +49,6 @@ const withTimeout = async (url, options, timeoutMs = 45000) => {
     }
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const parseJsonResponse = (bodyText) => {
-    try {
-        return bodyText ? JSON.parse(bodyText) : {};
-    }
-    catch {
-        return { raw: bodyText };
-    }
-};
 const extractImageUrls = (payload) => {
     const urls = [];
     const pushMaybe = (value) => {
@@ -152,7 +144,13 @@ const callOpenAICompatibleImageAPI = async (url, apiKey, payload) => {
         }),
     }, 60000);
     const bodyText = await response.text();
-    const json = parseJsonResponse(bodyText);
+    let json = {};
+    try {
+        json = bodyText ? JSON.parse(bodyText) : {};
+    }
+    catch {
+        json = { raw: bodyText };
+    }
     if (!response.ok) {
         throw new Error(`Image API error ${response.status}: ${json?.error?.message || json?.message || bodyText}`);
     }
@@ -175,7 +173,13 @@ const callSiliconFlowImageAPI = async (apiKey, payload) => {
         }),
     }, 60000);
     const bodyText = await response.text();
-    const json = parseJsonResponse(bodyText);
+    let json = {};
+    try {
+        json = bodyText ? JSON.parse(bodyText) : {};
+    }
+    catch {
+        json = { raw: bodyText };
+    }
     if (!response.ok) {
         throw new Error(`SiliconFlow image API error ${response.status}: ${json?.error?.message || json?.message || bodyText}`);
     }
@@ -209,7 +213,13 @@ const callAliyunImageAPI = async (apiKey, payload) => {
         }),
     }, 60000);
     const createText = await createResponse.text();
-    const createJson = parseJsonResponse(createText);
+    let createJson = {};
+    try {
+        createJson = createText ? JSON.parse(createText) : {};
+    }
+    catch {
+        createJson = { raw: createText };
+    }
     if (!createResponse.ok) {
         throw new Error(`Aliyun image create task failed ${createResponse.status}: ${createJson?.message || createJson?.code || createText}`);
     }
@@ -231,7 +241,13 @@ const callAliyunImageAPI = async (apiKey, payload) => {
             },
         }, 45000);
         const taskText = await taskResponse.text();
-        const taskJson = parseJsonResponse(taskText);
+        let taskJson = {};
+        try {
+            taskJson = taskText ? JSON.parse(taskText) : {};
+        }
+        catch {
+            taskJson = { raw: taskText };
+        }
         if (!taskResponse.ok) {
             throw new Error(`Aliyun image task query failed ${taskResponse.status}: ${taskJson?.message || taskJson?.code || taskText}`);
         }

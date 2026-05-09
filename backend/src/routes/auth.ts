@@ -1,25 +1,40 @@
 import express, {Request, Response} from 'express'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import {createUser, findUserByEmail, findUserById, findUserByReferralCode} from '../services/userService.ts'
-import {authenticateToken, JWT_SECRET} from '../middleware/auth.ts'
-import {User} from '../models/User.ts'
-import redisClient from '../config/redis.ts'
-import {WeChatOAuthService} from '../services/wechat/oauth.ts'
+import {createUser, findUserByEmail, findUserById, findUserByReferralCode} from '../services/userService.js'
+import {authenticateToken, JWT_SECRET} from '../middleware/auth.js'
+import {User} from '../models/User.js'
+import redisClient from '../config/redis.js'
+import {WeChatOAuthService} from '../services/wechat/oauth.js'
 import {v4 as uuidv4} from 'uuid'
-import {recordTokenUsage} from '../services/tokenService.ts'
-import {withRateLimit} from '../middleware/rateLimit.ts'
+import {recordTokenUsage} from '../services/tokenService.js'
+import {withRateLimit} from '../middleware/rateLimit.js'
 
 const router = express.Router()
 
 // Login
 router.post('/login', withRateLimit('auth'), async (req: Request, res: Response) => {
   try {
-    const {email, password} = req.body
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    const password = String(req.body?.password || '')
+
+    if (!email || !password) {
+      return res.status(400).json({error: 'Email and password are required'})
+    }
+
     const user = await findUserByEmail(email)
 
     if (!user) {
       return res.status(401).json({error: 'Invalid credentials'})
+    }
+
+    if (!user.passwordHash) {
+      console.warn('[auth/login] user has no password hash:', {userId: user.id, email: user.email})
+      return res.status(401).json({error: 'Invalid credentials'})
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({error: 'Account is disabled'})
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash)
@@ -39,6 +54,7 @@ router.post('/login', withRateLimit('auth'), async (req: Request, res: Response)
       },
     })
   } catch (error) {
+    console.error('Login failed:', error)
     res.status(500).json({error: 'Login failed'})
   }
 })
@@ -46,7 +62,13 @@ router.post('/login', withRateLimit('auth'), async (req: Request, res: Response)
 // Register
 router.post('/register', withRateLimit('auth'), async (req: Request, res: Response) => {
   try {
-    const {email, password, name} = req.body
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    const password = String(req.body?.password || '')
+    const name = String(req.body?.name || '').trim()
+
+    if (!email || !password) {
+      return res.status(400).json({error: 'Email and password are required'})
+    }
 
     const existingUser = await findUserByEmail(email)
     if (existingUser) {

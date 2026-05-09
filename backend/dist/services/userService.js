@@ -1,13 +1,12 @@
 import { Op } from 'sequelize';
-import { User } from "../models/User.js";
-import { TokenUsageRecord } from "../models/TokenUsageRecord.js";
-import { SystemConfig } from "../models/SystemConfig.js";
-import redisClient from "../config/redis.js";
+import { User } from '../models/User.js';
+import { TokenUsageRecord } from '../models/TokenUsageRecord.js';
+import { SystemConfig } from '../models/SystemConfig.js';
+import redisClient from '../config/redis.js';
 import bcrypt from 'bcryptjs';
-import { getVisitMetrics } from "./visitService.js";
+import { getVisitMetrics } from './visitService.js';
 const CACHE_TTL = 3600; // 1 hour
 const DEFAULT_REGISTER_TOKENS = 5000;
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 export const getAllUsers = async () => {
     return User.findAll();
 };
@@ -22,7 +21,7 @@ export const updateUserStatus = async (id, isActive) => {
     return user;
 };
 export const findUserByEmail = async (email) => {
-    return User.findOne({ where: { email: normalizeEmail(email) } });
+    return User.findOne({ where: { email } });
 };
 export const findUserById = async (id) => {
     // Try to get from Redis
@@ -64,7 +63,7 @@ export const createUser = async (email, password, name) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const tokensBalance = await getRegisterQuota();
     const user = await User.create({
-        email: normalizeEmail(email),
+        email,
         passwordHash,
         name,
         role: 'user',

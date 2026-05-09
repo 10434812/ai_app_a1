@@ -1,18 +1,18 @@
 import {Router, Request, Response} from 'express'
-import {authenticateToken} from '../middleware/auth.ts'
-import {getImageGenerationPublicOptions} from '../services/media/imageService.ts'
+import {authenticateToken} from '../middleware/auth.js'
+import {getImageGenerationPublicOptions} from '../services/media/imageService.js'
 import {
   createImageTask,
   createVideoTask,
   getTaskByIdForUser,
   runMediaTaskWorkerTick,
   startMediaTaskWorker,
-} from '../services/media/mediaTaskService.ts'
-import {withConcurrencyGuard, withEntitlement, enforceImageRequestLimit} from '../middleware/entitlement.ts'
-import {captureError} from '../services/observabilityService.ts'
-import {withRateLimit} from '../middleware/rateLimit.ts'
-import {sendError} from '../errors/api.ts'
-import {isModelActive} from '../services/modelStatusService.ts'
+} from '../services/media/mediaTaskService.js'
+import {withConcurrencyGuard, withEntitlement, enforceImageRequestLimit} from '../middleware/entitlement.js'
+import {captureError} from '../services/observabilityService.js'
+import {withRateLimit} from '../middleware/rateLimit.js'
+import {sendError} from '../errors/api.js'
+import {isModelActive} from '../services/modelStatusService.js'
 
 const router = Router()
 

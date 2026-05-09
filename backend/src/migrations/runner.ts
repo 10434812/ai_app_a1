@@ -1,5 +1,5 @@
 import type {Sequelize} from 'sequelize-typescript'
-import {MIGRATIONS} from './registry.ts'
+import {MIGRATIONS} from './registry.js'
 
 const TABLE_NAME = 'schema_migrations'
 

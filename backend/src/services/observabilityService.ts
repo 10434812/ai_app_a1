@@ -1,5 +1,5 @@
-import redisClient from '../config/redis.ts'
-import {redactSensitive} from '../utils/redaction.ts'
+import redisClient from '../config/redis.js'
+import {redactSensitive} from '../utils/redaction.js'
 
 type CounterKey =
   | 'payment_attempt_total'

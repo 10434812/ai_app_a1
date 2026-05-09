@@ -17,18 +17,6 @@ services:
     networks:
       - app-network
 
-  redis:
-    image: redis:alpine
-    container_name: ai_app_redis
-    restart: always
-    ports:
-      - '6379:6379'
-    command: redis-server --requirepass ${REDIS_PASSWORD:-123456}
-    volumes:
-      - redis_data:/data
-    networks:
-      - app-network
-
   backend:
     build: ./backend
     container_name: ai_app_backend
@@ -42,8 +30,9 @@ services:
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-123456}
       - DB_NAME=${DB_NAME:-ai_app}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-123456}@redis:6379
+      - REDIS_DISABLED=true
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key_123456}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://localhost:3001}
       # Add your API keys here or in a .env file
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
@@ -51,7 +40,6 @@ services:
       - MOONSHOT_API_KEY=${MOONSHOT_API_KEY}
     depends_on:
       - mysql
-      - redis
     networks:
       - app-network
 
@@ -84,4 +72,3 @@ networks:
 
 volumes:
   mysql_data:
-  redis_data:

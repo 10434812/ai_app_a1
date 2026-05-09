@@ -1,5 +1,5 @@
 import express from 'express'
-import { WeChatService } from '../services/wechat/jssdk.ts'
+import { WeChatService } from '../services/wechat/jssdk.js'
 
 const router = express.Router()
 

@@ -1,55 +1,41 @@
 import express from 'express';
 import { Op } from 'sequelize';
-import { getMetrics, getUsers, toggleUserStatus } from "../services/userService.js";
-import { getAnalysisStats, getUserPortraits, getRecentQuestions, getCostDashboard, getRetentionStats, getTokenEconomicsDashboard, } from "../services/analysisService.js";
-import { ALL_MODELS } from "../services/llm/config.js";
-import { SystemConfig } from "../models/SystemConfig.js";
-import { countActiveModels, getModelStatusMap, setModelActive } from "../services/modelStatusService.js";
-import { Order } from "../models/Order.js";
-import { OrderAuditLog } from "../models/OrderAuditLog.js";
-import { User } from "../models/User.js";
-import { Conversation } from "../models/Conversation.js";
-import { Message } from "../models/Message.js";
-import { requireAdmin } from "../middleware/auth.js";
-import { requirePermission } from "../middleware/rbac.js";
-import { PAYMENT_PLANS, inferPlanKeyFromOrderPlan, parsePlanSnapshot } from "../config/paymentPlans.js";
-import { recordTokenUsage } from "../services/tokenService.js";
-import { calculateChatCost, getBillingConfig, updateBillingConfig } from "../services/billingConfigService.js";
-import { getObservabilitySummary } from "../services/observabilityService.js";
-import { TokenUsageRecord } from "../models/TokenUsageRecord.js";
-import { VisitLog } from "../models/VisitLog.js";
-import { MediaTask } from "../models/MediaTask.js";
-import { processPaymentSuccess } from "./payment.js";
-import { captureError } from "../services/observabilityService.js";
-import { sequelize } from "../config/db.js";
-import redisClient from "../config/redis.js";
-import { sendError } from "../errors/api.js";
-import { buildIdempotencyKey, createRequestFingerprint, runIdempotent, withOrderLock } from "../services/idempotencyService.js";
-import { getExportableSystemConfigs, upsertSystemConfigs } from "../services/configSyncService.js";
-import { weChatPayService } from "../services/payment/wechat.js";
-import { withRateLimit } from "../middleware/rateLimit.js";
-import { buildCsv } from "../utils/csv.js";
+import { getMetrics, getUsers, toggleUserStatus } from '../services/userService.js';
+import { getAnalysisStats, getUserPortraits, getRecentQuestions, getCostDashboard, getRetentionStats, getTokenEconomicsDashboard, } from '../services/analysisService.js';
+import { ALL_MODELS } from '../services/llm/config.js';
+import { SystemConfig } from '../models/SystemConfig.js';
+import { countActiveModels, getModelStatusMap, setModelActive } from '../services/modelStatusService.js';
+import { Order } from '../models/Order.js';
+import { OrderAuditLog } from '../models/OrderAuditLog.js';
+import { User } from '../models/User.js';
+import { Conversation } from '../models/Conversation.js';
+import { Message } from '../models/Message.js';
+import { requireAdmin } from '../middleware/auth.js';
+import { requirePermission } from '../middleware/rbac.js';
+import { PAYMENT_PLANS, inferPlanKeyFromOrderPlan, parsePlanSnapshot } from '../config/paymentPlans.js';
+import { recordTokenUsage } from '../services/tokenService.js';
+import { calculateChatCost, getBillingConfig, updateBillingConfig } from '../services/billingConfigService.js';
+import { getObservabilitySummary } from '../services/observabilityService.js';
+import { TokenUsageRecord } from '../models/TokenUsageRecord.js';
+import { VisitLog } from '../models/VisitLog.js';
+import { MediaTask } from '../models/MediaTask.js';
+import { processPaymentSuccess } from './payment.js';
+import { captureError } from '../services/observabilityService.js';
+import { sequelize } from '../config/db.js';
+import redisClient from '../config/redis.js';
+import { sendError } from '../errors/api.js';
+import { buildIdempotencyKey, createRequestFingerprint, runIdempotent, withOrderLock } from '../services/idempotencyService.js';
+import { getExportableSystemConfigs, upsertSystemConfigs } from '../services/configSyncService.js';
+import { weChatPayService } from '../services/payment/wechat.js';
 const router = express.Router();
 router.use(requireAdmin);
-router.use(withRateLimit('admin'));
 const buildWeChatOutTradeNo = (orderId) => orderId.replace(/-/g, '').slice(0, 32);
-const readErrorMessage = (error) => {
-    if (error instanceof Error)
-        return error.message;
-    if (typeof error === 'string')
-        return error;
-    return '';
-};
-const getRelatedUserEmail = (value) => {
-    const user = value?.user;
-    return typeof user?.email === 'string' ? user.email : '';
-};
 const readIdempotencyToken = (req) => {
     const value = String(req.headers['idempotency-key'] || req.headers['x-idempotency-key'] || req.body?.idempotencyKey || '').trim();
     return value.slice(0, 128);
 };
 const isLockedError = (error) => {
-    const message = readErrorMessage(error);
+    const message = String(error?.message || '');
     return message === 'IDEMPOTENCY_LOCKED' || message.startsWith('ORDER_LOCKED:');
 };
 const requireActionConfirmation = (req, res, actionLabel) => {
@@ -221,7 +207,7 @@ router.post('/orders/:id/repair', requirePermission('orders:operate'), async (re
         res.json({ ...result.data, replayed: result.replayed });
     }
     catch (error) {
-        if (readErrorMessage(error) === 'ORDER_NOT_FOUND') {
+        if (String(error?.message || '') === 'ORDER_NOT_FOUND') {
             return sendError(res, {
                 status: 404,
                 code: 'ORDER_NOT_FOUND',
@@ -277,7 +263,7 @@ router.post('/orders/:id/manual-complete', requirePermission('orders:operate'), 
         res.json({ ...result.data, replayed: result.replayed });
     }
     catch (error) {
-        if (readErrorMessage(error) === 'ORDER_NOT_FOUND') {
+        if (String(error?.message || '') === 'ORDER_NOT_FOUND') {
             return sendError(res, {
                 status: 404,
                 code: 'ORDER_NOT_FOUND',
@@ -375,7 +361,7 @@ router.post('/orders/:id/manual-refund', requirePermission('orders:operate'), as
                         // Here we only mark order refunded and leave membership adjustments to manual ops.
                     }
                     order.status = 'refunded';
-                    order.refundedAmount = effectiveRefundAmount.toFixed(2);
+                    order.refundedAmount = effectiveRefundAmount;
                     order.refundedAt = new Date();
                     await order.save({ transaction });
                     const after = buildOrderSnapshot(order);
@@ -395,7 +381,7 @@ router.post('/orders/:id/manual-refund', requirePermission('orders:operate'), as
         res.json({ ...result.data, replayed: result.replayed });
     }
     catch (error) {
-        const message = readErrorMessage(error);
+        const message = String(error?.message || '');
         if (message === 'ORDER_NOT_FOUND') {
             return sendError(res, {
                 status: 404,
@@ -428,7 +414,7 @@ router.post('/orders/:id/manual-refund', requirePermission('orders:operate'), as
                 retryable: false,
             });
         }
-        if (message.includes('Insufficient balance')) {
+        if (String(error?.message || '').includes('Insufficient balance')) {
             return sendError(res, {
                 status: 400,
                 code: 'REFUND_INSUFFICIENT_BALANCE',
@@ -473,7 +459,7 @@ router.get('/config/keys', requirePermission('settings:manage'), async (req, res
                 description: `API Key for ${mk.name}`,
             };
         });
-        // Also include extra DB keys that might not match current models (optional)
+        // Also include any other keys in DB that might not match current models (optional)
         res.json(result);
     }
     catch (error) {
@@ -635,7 +621,7 @@ router.post('/config/general/wechat-pay/test', requirePermission('settings:manag
         sendError(res, {
             status: 400,
             code: 'WECHAT_PAY_TEST_FAILED',
-            message: readErrorMessage(error) || '微信支付配置测试失败',
+            message: String(error?.message || '微信支付配置测试失败'),
             retryable: false,
         });
     }
@@ -732,14 +718,13 @@ router.post('/config/import', requirePermission('settings:manage'), async (req, 
             return res.status(400).json({ error: 'Config rows are required' });
         }
         const normalizedRows = rows.map((row) => {
-            const normalized = row;
-            if (!normalized || typeof normalized.key !== 'string' || !normalized.key.trim()) {
+            if (!row || typeof row.key !== 'string' || !row.key.trim()) {
                 throw new Error('Invalid config row');
             }
             return {
-                key: normalized.key.trim(),
-                value: normalized.value === null || normalized.value === undefined ? null : String(normalized.value),
-                description: normalized.description === null || normalized.description === undefined ? null : String(normalized.description),
+                key: row.key.trim(),
+                value: row.value === null || row.value === undefined ? null : String(row.value),
+                description: row.description === null || row.description === undefined ? null : String(row.description),
             };
         });
         await upsertSystemConfigs(normalizedRows);
@@ -815,9 +800,7 @@ router.get('/analysis/stats', requirePermission('analysis:read'), async (req, re
 });
 router.get('/analysis/portraits', requirePermission('analysis:read'), async (req, res) => {
     try {
-        const page = Number.parseInt(String(req.query.page || '1'), 10) || 1;
-        const pageSize = Number.parseInt(String(req.query.pageSize || '50'), 10) || 50;
-        const portraits = await getUserPortraits(page, pageSize);
+        const portraits = await getUserPortraits();
         res.json(portraits);
     }
     catch (error) {
@@ -867,6 +850,13 @@ router.get('/analysis/economics', requirePermission('analysis:read'), async (req
         res.status(500).json({ error: 'Failed to fetch economics dashboard' });
     }
 });
+const escapeCsv = (value) => {
+    const str = String(value ?? '');
+    if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
 router.get('/export/orders.csv', requirePermission('export:read'), async (req, res) => {
     try {
         const status = String(req.query.status || '').trim();
@@ -876,12 +866,11 @@ router.get('/export/orders.csv', requirePermission('export:read'), async (req, r
         if (status)
             where.status = status;
         if (start || end) {
-            const createdAt = {};
+            where.createdAt = {};
             if (start)
-                createdAt[Op.gte] = new Date(`${start}T00:00:00`);
+                where.createdAt[Op.gte] = new Date(`${start}T00:00:00`);
             if (end)
-                createdAt[Op.lte] = new Date(`${end}T23:59:59`);
-            where.createdAt = createdAt;
+                where.createdAt[Op.lte] = new Date(`${end}T23:59:59`);
         }
         const rows = await Order.findAll({
             where,
@@ -906,7 +895,7 @@ router.get('/export/orders.csv', requirePermission('export:read'), async (req, r
         const lines = rows.map((order) => [
             order.id,
             order.userId,
-            getRelatedUserEmail(order),
+            order.user?.email || '',
             order.plan,
             order.planKey || '',
             order.amount,
@@ -916,8 +905,10 @@ router.get('/export/orders.csv', requirePermission('export:read'), async (req, r
             order.refundedAmount || '',
             order.refundedAt || '',
             order.createdAt,
-        ]);
-        const csv = buildCsv([header, ...lines]);
+        ]
+            .map(escapeCsv)
+            .join(','));
+        const csv = [header.join(','), ...lines].join('\n');
         res.header('Content-Type', 'text/csv');
         res.attachment('orders_export.csv');
         res.send(csv);
@@ -939,12 +930,11 @@ router.get('/export/tokens.csv', requirePermission('export:read'), async (req, r
         if (model)
             where.model = model;
         if (start || end) {
-            const createdAt = {};
+            where.createdAt = {};
             if (start)
-                createdAt[Op.gte] = new Date(`${start}T00:00:00`);
+                where.createdAt[Op.gte] = new Date(`${start}T00:00:00`);
             if (end)
-                createdAt[Op.lte] = new Date(`${end}T23:59:59`);
-            where.createdAt = createdAt;
+                where.createdAt[Op.lte] = new Date(`${end}T23:59:59`);
         }
         const rows = await TokenUsageRecord.findAll({
             where,
@@ -956,14 +946,16 @@ router.get('/export/tokens.csv', requirePermission('export:read'), async (req, r
         const lines = rows.map((record) => [
             record.id,
             record.userId,
-            getRelatedUserEmail(record),
+            record.user?.email || '',
             record.type,
             record.model || '',
             record.amount,
             record.balanceAfter,
             record.createdAt,
-        ]);
-        const csv = buildCsv([header, ...lines]);
+        ]
+            .map(escapeCsv)
+            .join(','));
+        const csv = [header.join(','), ...lines].join('\n');
         res.header('Content-Type', 'text/csv');
         res.attachment('token_usage_export.csv');
         res.send(csv);
@@ -985,8 +977,7 @@ router.post('/data/archive', requirePermission('archive:execute'), async (req, r
             const [rows] = await sequelize.query(`SELECT COUNT(*) AS count FROM \`${table}\` WHERE \`createdAt\` < ?`, {
                 replacements: [cutoffSql],
             });
-            const countRows = Array.isArray(rows) ? rows : [];
-            counts[table] = Number(countRows[0]?.count || 0);
+            counts[table] = Number(rows[0]?.count || 0);
         }
         if (dryRun) {
             return res.json({

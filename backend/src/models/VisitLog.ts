@@ -10,7 +10,7 @@ import {
   IsUUID,
 } from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
-import {User} from './User.ts'
+import {User} from './User.js'
 
 @Table({
   tableName: 'visit_logs',

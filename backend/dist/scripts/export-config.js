@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { connectDB, sequelize } from "../config/db.js";
-import { getExportableSystemConfigs } from "../services/configSyncService.js";
+import { connectDB, sequelize } from '../config/db.js';
+import { getExportableSystemConfigs } from '../services/configSyncService.js';
 const parseArgs = (argv) => {
     const options = {
         output: './config-export.json',

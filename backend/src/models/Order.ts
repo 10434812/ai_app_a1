@@ -1,6 +1,6 @@
 import {Table, Column, Model, DataType, PrimaryKey, Default, IsUUID, ForeignKey, BelongsTo} from 'sequelize-typescript'
 import {v4 as uuidv4} from 'uuid'
-import {User} from './User.ts'
+import {User} from './User.js'
 
 @Table({
   tableName: 'orders',

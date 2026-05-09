@@ -1,6 +1,6 @@
-import { SystemConfig } from "../models/SystemConfig.js";
-import { ALL_MODELS } from "./llm/config.js";
-import { getModelStatusMap } from "./modelStatusService.js";
+import { SystemConfig } from '../models/SystemConfig.js';
+import { ALL_MODELS } from './llm/config.js';
+import { getModelStatusMap } from './modelStatusService.js';
 const IMAGE_MODEL_STATUS_MAP = {
     'aliyun-image': {
         provider: 'aliyun',
@@ -53,19 +53,10 @@ export const getPublicModelStatusMap = async () => {
         'ZHIPU_IMAGE_MODEL',
         'SILICONFLOW_IMAGE_MODEL',
     ]));
-    let rows = [];
-    let statusMap = {};
-    try {
-        ;
-        [rows, statusMap] = await Promise.all([
-            SystemConfig.findAll({ where: { key: relevantKeys } }),
-            getModelStatusMap(),
-        ]);
-    }
-    catch {
-        rows = [];
-        statusMap = {};
-    }
+    const [rows, statusMap] = await Promise.all([
+        SystemConfig.findAll({ where: { key: relevantKeys } }),
+        getModelStatusMap(),
+    ]);
     const configMap = new Map(rows.map((row) => [row.key, row.value || '']));
     const result = {};
     for (const model of ALL_MODELS) {

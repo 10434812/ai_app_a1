@@ -1,7 +1,6 @@
 import express from 'express';
-import { getTokenStats, getTokenHistory, getTokenTrend } from "../services/tokenService.js";
-import { authenticateToken } from "../middleware/auth.js";
-import { buildCsv } from "../utils/csv.js";
+import { getTokenStats, getTokenHistory, getTokenTrend } from '../services/tokenService.js';
+import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 router.get('/stats', authenticateToken, async (req, res) => {
     try {
@@ -51,16 +50,20 @@ router.get('/export', authenticateToken, async (req, res) => {
         const userId = req.user.id;
         // Fetch all history for export (limit to last 1000 for safety)
         const { records } = await getTokenHistory(userId, 1, 1000);
-        const csv = buildCsv([
-            ['Time', 'Type', 'Amount', 'Model', 'Balance After'],
-            ...records.map((r) => [
-                new Date(r.createdAt).toISOString(),
-                r.type,
-                r.amount,
-                r.model || '',
-                r.balanceAfter,
-            ]),
-        ]);
+        // Convert to CSV
+        const fields = ['Time', 'Type', 'Amount', 'Model', 'Balance After'];
+        const csv = [
+            fields.join(','),
+            ...records.map(r => {
+                return [
+                    new Date(r.createdAt).toISOString(),
+                    r.type,
+                    r.amount,
+                    r.model || '',
+                    r.balanceAfter
+                ].join(',');
+            })
+        ].join('\n');
         res.header('Content-Type', 'text/csv');
         res.attachment('token_usage.csv');
         res.send(csv);

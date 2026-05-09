@@ -1,10 +1,10 @@
 import {Op} from 'sequelize'
-import {Conversation} from '../models/Conversation.ts'
-import {Message} from '../models/Message.ts'
-import {User} from '../models/User.ts'
-import {TokenUsageRecord} from '../models/TokenUsageRecord.ts'
-import {Order} from '../models/Order.ts'
-import {inferPlanKeyFromOrderPlan} from '../config/paymentPlans.ts'
+import {Conversation} from '../models/Conversation.js'
+import {Message} from '../models/Message.js'
+import {User} from '../models/User.js'
+import {TokenUsageRecord} from '../models/TokenUsageRecord.js'
+import {Order} from '../models/Order.js'
+import {inferPlanKeyFromOrderPlan} from '../config/paymentPlans.js'
 
 export const getAnalysisStats = async () => {
   const totalConversations = await Conversation.count()

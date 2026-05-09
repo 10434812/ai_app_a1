@@ -1,5 +1,5 @@
 import type {Request, Response, NextFunction} from 'express'
-import {ADMIN_ROLES, requireAdmin} from './auth.ts'
+import {ADMIN_ROLES, requireAdmin} from './auth.js'
 
 export type AdminRole = 'admin' | 'super_admin' | 'ops' | 'finance' | 'support'
 

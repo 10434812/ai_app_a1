@@ -1,6 +1,6 @@
-import {SystemConfig} from '../models/SystemConfig.ts'
-import {ALL_MODELS, type ModelConfig} from './llm/config.ts'
-import {getModelStatusMap} from './modelStatusService.ts'
+import {SystemConfig} from '../models/SystemConfig.js'
+import {ALL_MODELS, type ModelConfig} from './llm/config.js'
+import {getModelStatusMap} from './modelStatusService.js'
 
 type PublicModelStatus = {
   id: string

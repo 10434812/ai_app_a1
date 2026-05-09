@@ -1,7 +1,7 @@
 import type {Request, Response, NextFunction} from 'express'
-import redisClient from '../config/redis.ts'
-import {SystemConfig} from '../models/SystemConfig.ts'
-import {User} from '../models/User.ts'
+import redisClient from '../config/redis.js'
+import {SystemConfig} from '../models/SystemConfig.js'
+import {User} from '../models/User.js'
 
 type RateScope = 'chat' | 'image' | 'payment' | 'auth'
 
